@@ -1,0 +1,42 @@
+# Environment and local configuration
+.env
+.env.local
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+*.db
+*.sqlite
+*.sqlite3
+*.egg-info/
+
+# Node.js
+node_modules/
+dist/
+coverage/
+.eslintcache
+*.tsbuildinfo
+
+# Test and build output
+test-results/
+playwright-report/
+*.log
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local data
+postgres-data/
+uploads/
+exports/
