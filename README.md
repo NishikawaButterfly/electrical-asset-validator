@@ -1,35 +1,38 @@
 # Electrical Asset Validator
 
-Electrical Asset Validator is a self-hosted web application for validating CSV
-and XLSX electrical asset registers and reviewing changes between revisions.
-It turns spreadsheet handovers into an explicit, repeatable workflow with
-row-level findings, revision diffs, and downloadable reports.
+Electrical Asset Validator is a self-hosted web application for validating
+CSV and XLSX electrical asset registers. You upload an asset register, it
+tells you what's wrong with it, and it can diff two revisions so you see what
+changed. Findings are reported per row, and results can be downloaded as PDF
+or XLSX reports.
 
 ## Problem
 
-Electrical asset registers often move between design, commissioning, and
-operations teams as spreadsheets. Small defects—duplicate tags, missing panel
-references, invalid ratings, or silent changes between revisions—are difficult
-to spot manually and can weaken downstream analysis.
+Electrical asset registers move between design, commissioning, and operations
+teams as spreadsheets. Duplicate tags and missing panel references are easy
+to miss in a long register. So are invalid ratings. Changes between revisions
+are even easier to miss, and bad data weakens any analysis built on top of it.
 
-This project provides an auditable data-quality gate. It checks a narrow
-tabular contract, explains every finding, and compares revisions by stable
-asset tag.
-It supports engineering review; it does not certify an electrical design or
-replace applicable codes, calculations, or site verification.
+This project is a data-quality gate for that handover. It checks a narrow
+tabular contract and explains every finding. Revisions are compared by stable
+asset tag. It supports engineering review. It does not certify an electrical
+design, and it does not replace applicable codes, calculations, or site
+verification.
 
 ## Features
 
-- CSV and XLSX upload with a documented nine-column contract
-- required-field, duplicate-tag, format, and numeric-domain checks
-- error and warning summaries with row and field context
-- before/after comparison with added, removed, and modified assets
-- field-level change details keyed by `asset_tag`
-- validation history and result retrieval through a versioned API
-- PDF and XLSX report downloads for validation runs
-- responsive React interface and OpenAPI-backed FastAPI service
-- Docker Compose environment with PostgreSQL and health checks
-- fictional sample revisions for a reproducible product tour
+- Upload CSV or XLSX files. Both go through the same documented nine-column
+  contract: required fields, duplicate tags, formats, and numeric ranges.
+- Errors and warnings come with the row and field they refer to.
+- Compare two revisions to get added, removed, and modified assets, plus
+  field-level change details keyed by `asset_tag`.
+- Past validations stay retrievable through a versioned API.
+- Reports download as PDF or XLSX.
+
+The frontend is a responsive React app. The backend is a FastAPI service with
+an OpenAPI schema. Docker Compose runs the whole stack with PostgreSQL and
+health checks, and fictional sample data is included so you can try it
+without a real register.
 
 ## Product preview
 
@@ -54,17 +57,18 @@ flowchart LR
     Reports --> API
 ```
 
-The production frontend uses same-origin `/api/` requests, which Nginx proxies
-to the backend. The backend is the sole source of truth for parsing,
-normalization, validation, comparison, and report generation. See
+The production frontend makes same-origin `/api/` requests, which Nginx
+proxies to the backend. Parsing, normalization, validation, comparison, and
+report generation all happen in the backend. See
 [`docs/architecture.md`](docs/architecture.md) for boundaries, request flows,
 and operational decisions.
 
 ## Data contract
 
-Inputs may be UTF-8 CSV files or XLSX workbooks. They must include all nine
-canonical columns. Header matching normalizes case, surrounding whitespace,
-spaces, and hyphens; the following snake-case header is recommended:
+Inputs may be UTF-8 CSV files or XLSX workbooks, and they must include all
+nine canonical columns. Header matching normalizes case, surrounding
+whitespace, spaces, and hyphens. This snake_case header row is the
+recommended form:
 
 ```csv
 asset_tag,asset_name,asset_type,location,panel_tag,circuit_ref,voltage_v,power_kw,status
@@ -82,15 +86,15 @@ asset_tag,asset_name,asset_type,location,panel_tag,circuit_ref,voltage_v,power_k
 | `power_kw` | decimal | Required rated power in kilowatts; from 0 to 1,000,000 |
 | `status` | string | `active`, `standby`, `maintenance`, or `decommissioned` |
 
-Each upload is limited to 10 MiB by default, 50,000 non-empty data rows,
-64 columns, and 32,767 characters per cell. XLSX workbooks also have expanded
-archive and compression-ratio safety limits, and their used range may not
-extend beyond source row 250,000. A validation retains at most 10,000 finding
-details while its metrics and score account for every detected finding; the
-final returned finding explains when that bound is reached. Comparisons are
+Uploads are limited to 10 MiB by default, 50,000 non-empty data rows,
+64 columns, and 32,767 characters per cell. XLSX workbooks get extra safety
+limits on expanded archive size and compression ratio, and their used range
+may not extend beyond source row 250,000. A validation keeps at most 10,000
+finding details. Its metrics and quality score still count every finding, and
+the last returned finding says when that cap was reached. Comparisons are
 rejected when they would produce more than 10,000 added, removed, or
-field-change details. Blank CSV lines are ignored without losing the original
-source row numbers reported in findings.
+field-change details. Blank CSV lines are skipped, but findings still report
+the original source row numbers.
 
 The complete baseline rule catalogue is in
 [`docs/rules.md`](docs/rules.md).
@@ -99,8 +103,8 @@ The complete baseline rule catalogue is in
 
 Prerequisites: Docker Engine with Docker Compose v2.
 
-The development defaults start the complete stack with one command and bind
-its published ports to `127.0.0.1`:
+The development defaults bind published ports to `127.0.0.1` and start the
+whole stack with one command:
 
 ```bash
 docker compose up --build
@@ -191,9 +195,9 @@ Interactive request and response schemas are available from `/docs` when
 
 ## Sample workflow
 
-The files under [`sample-data/`](sample-data/) are fictional. Revisions A and B
-form a clean comparison pair; `invalid-register.csv` contains deliberate
-data-quality failures.
+The files under [`sample-data/`](sample-data/) are fictional. Revisions A
+and B form a clean comparison pair, and `invalid-register.csv` contains
+deliberate data-quality failures.
 
 Validate the deliberately invalid register:
 
@@ -212,9 +216,9 @@ curl --fail-with-body \
   http://localhost:8000/api/v1/comparisons
 ```
 
-The expected highlights—including a duplicate tag, missing values, invalid
-numbers, one removed asset, one added asset, and several field changes—are described in
-[`sample-data/README.md`](sample-data/README.md).
+[`sample-data/README.md`](sample-data/README.md) describes what to expect:
+a duplicate tag, missing values, invalid numbers, one removed asset, one
+added asset, and several field changes.
 
 ## Project structure
 
@@ -236,55 +240,59 @@ numbers, one removed asset, one added asset, and several field changes—are des
 - This repository does not intentionally add telemetry, analytics, or
   third-party upload services.
 - In the self-hosted stack, uploaded register data is processed by the
-  configured backend and results may be stored in its database.
-- Asset registers can reveal operational infrastructure. Operators must define
-  access control, retention, backups, encryption, and incident procedures.
-- The local stack does not provide TLS, authentication, or authorization. Put
-  it behind an appropriate trusted gateway before exposing it to a network.
-  Compose binds published ports to loopback by default.
+  configured backend, and results may be stored in its database.
+- Asset registers can reveal operational infrastructure. Access control,
+  retention, backups, encryption, and incident procedures are up to the
+  operator.
+- The local stack has no TLS, authentication, or authorization. Put it behind
+  a trusted gateway before exposing it to a network. Compose binds published
+  ports to loopback by default.
 - Do not use the fictional sample data as an engineering design basis.
 
 ## Decisions
 
-- **One tabular contract:** accepting CSV and XLSX without format-specific
-  business rules keeps results consistent while fitting common handover tools.
-- **Stable identity:** comparisons use `asset_tag`; a tag change is an addition
-  plus a removal.
-- **Server-owned rules:** validation and reports share one implementation.
-- **Bounded synchronous processing:** FastAPI executes upload work in worker
-  threads, and explicit compressed-size, expanded-size, row, column, and cell
-  limits plus finding and comparison-detail caps keep the request-lifecycle
-  MVP predictable.
-- **Same-origin frontend:** production API calls avoid environment-specific
-  hosts in the browser bundle.
+CSV and XLSX go through exactly the same rules. There are no format-specific
+business rules, so the same register produces the same results either way,
+and both formats fit the tools registers actually get handed over in.
+
+Comparison identity comes from `asset_tag`. If a tag changes, the diff shows
+a removal plus an addition. The tool does not try to guess renames.
+
+All rules live server-side. Validation and the generated reports share one
+implementation.
+
+Processing is synchronous and deliberately bounded. FastAPI runs upload work
+in worker threads, and the explicit caps on compressed size, expanded size,
+rows, columns, cells, findings, and comparison details keep a request
+predictable for this MVP.
+
+Same-origin frontend, so no environment-specific hostnames end up in the
+browser bundle.
 
 ## Current limitations
 
-- Input is limited to CSV and XLSX; legacy XLS and arbitrary workbook layouts
-  are not supported.
-- There is no configurable column mapping or multi-sheet import workflow.
+- Input is CSV and XLSX only. Legacy XLS and arbitrary workbook layouts are
+  not supported.
+- No configurable column mapping, and no multi-sheet import workflow.
 - Asset types are free text rather than a managed taxonomy.
-- Processing stays within the request lifecycle, accepts at most 50,000
-  non-empty rows, returns at most 10,000 validation finding details, and
-  rejects comparisons above 10,000 details; asynchronous jobs, pagination for
-  result details, and object storage are not included.
-- There is no authentication, role model, approval workflow, or multi-tenant
+- Everything happens inside the request lifecycle: at most 50,000 non-empty
+  rows per file, at most 10,000 validation finding details, and comparisons
+  are rejected above 10,000 details. There are no asynchronous jobs, no
+  pagination for result details, and no object storage.
+- No authentication, role model, approval workflow, or multi-tenant
   isolation.
 - Renamed asset tags are not inferred.
 - The baseline rules check data quality, not electrical-code compliance or
   engineering correctness.
 - Production TLS, secret management, backups, monitoring, and database
-  migration procedures are deployment responsibilities.
+  migration procedures are the deployment's responsibility, not the app's.
 
 ## Roadmap
 
-- organization-specific rule packs and controlled taxonomies
-- authentication, roles, and immutable review history
-- configurable column mapping and richer workbook import workflows
-- asynchronous processing with object storage for large registers
-- explicit retagging and revision approval workflows
-- signed report artifacts and richer trend dashboards
-- import/export integrations for asset-management platforms
+Things I'd like to add eventually: authentication and roles, and configurable
+column mapping so the nine-column format isn't mandatory. Asynchronous
+processing for registers too big for the current limits would come after
+that. No promises on timing.
 
 ## License
 
