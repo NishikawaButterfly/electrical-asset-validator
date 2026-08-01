@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from io import BytesIO
 
 from httpx import AsyncClient
@@ -154,6 +155,123 @@ async def test_comparison_is_persisted_and_uses_source_row_numbers(
     detail = await client.get(f"/api/v1/comparisons/{payload['id']}")
     assert detail.status_code == 200
     assert detail.json() == payload
+
+
+async def test_validation_maps_nonstandard_headers_with_a_full_mapping(
+    client: AsyncClient,
+) -> None:
+    content = (
+        "Equipment ID,Description,Category,Site,Feeder Panel,Feeder Circuit,"
+        "Volts,Kilowatts,State\n"
+        "PNL-A,Main Panel,panel,Plant 1,,,400,0,active\n"
+        "MTR-001,Conveyor Motor,motor,Plant 1,PNL-A,C-01,400,15,active\n"
+    ).encode()
+    mapping = {
+        "Equipment ID": "asset_tag",
+        "Description": "asset_name",
+        "Category": "asset_type",
+        "Site": "location",
+        "Feeder Panel": "panel_tag",
+        "Feeder Circuit": "circuit_ref",
+        "Volts": "voltage_v",
+        "Kilowatts": "power_kw",
+        "State": "status",
+    }
+
+    response = await client.post(
+        "/api/v1/validations",
+        files=_files(content, "renamed.csv"),
+        data={"mapping": json.dumps(mapping)},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["quality_score"] == 100
+    assert payload["issues"] == []
+    assert payload["metrics"]["total_rows"] == 2
+
+
+async def test_validation_maps_renamed_columns_with_a_partial_mapping(
+    client: AsyncClient,
+    clean_csv: bytes,
+) -> None:
+    content = clean_csv.replace(b"asset_tag", b"Equipment ID", 1)
+
+    response = await client.post(
+        "/api/v1/validations",
+        files=_files(content, "partial.csv"),
+        data={"mapping": json.dumps({"Equipment ID": "asset_tag"})},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["quality_score"] == 100
+    assert payload["issues"] == []
+
+
+@pytest.mark.parametrize(
+    ("mapping", "message"),
+    [
+        ("{not json", "must be a valid JSON object"),
+        ('{"Voltage V": "volts"}', "'volts' is not a canonical field"),
+        (
+            '{"Asset Tag": "asset_tag", "Asset Name": "asset_tag"}',
+            "map to the same canonical field: asset_tag",
+        ),
+        (
+            '{"Missing Header": "asset_tag"}',
+            "not present in the file: missing_header",
+        ),
+    ],
+)
+async def test_invalid_column_mappings_return_422(
+    client: AsyncClient,
+    clean_csv: bytes,
+    mapping: str,
+    message: str,
+) -> None:
+    response = await client.post(
+        "/api/v1/validations",
+        files=_files(clean_csv),
+        data={"mapping": mapping},
+    )
+
+    assert response.status_code == 422
+    assert message in response.json()["detail"]
+
+
+async def test_comparison_applies_one_mapping_to_both_files(
+    client: AsyncClient,
+    clean_rows: list[dict[str, object]],
+) -> None:
+    after_rows = [dict(row) for row in clean_rows]
+    after_rows[1]["power_kw"] = 20
+    before_csv = csv_bytes(clean_rows).replace(b"asset_tag", b"Equipment ID", 1)
+    after_csv = csv_bytes(after_rows).replace(b"asset_tag", b"Equipment ID", 1)
+
+    response = await client.post(
+        "/api/v1/comparisons",
+        files={
+            "before_file": ("before.csv", before_csv, "text/csv"),
+            "after_file": ("after.csv", after_csv, "text/csv"),
+        },
+        data={"mapping": json.dumps({"Equipment ID": "asset_tag"})},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["summary"] == {
+        "added": 0,
+        "removed": 0,
+        "changed": 1,
+        "unchanged": 1,
+    }
+    assert payload["changed"] == [
+        {
+            "asset_tag": "MTR-001",
+            "changes": [{"field": "power_kw", "before": 15, "after": 20}],
+        }
+    ]
 
 
 async def test_invalid_uploads_and_missing_records_return_clear_errors(

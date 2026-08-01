@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import re
 from dataclasses import dataclass
 from io import BytesIO, StringIO
@@ -38,6 +39,10 @@ MAX_SCANNED_XLSX_ROWS = 250_000
 
 class DatasetError(ValueError):
     """Raised when an uploaded register cannot be parsed safely."""
+
+
+class MappingError(ValueError):
+    """Raised when a column mapping cannot be applied to an upload."""
 
 
 @dataclass(frozen=True)
@@ -243,6 +248,7 @@ def _build_dataset(
     raw_headers: list[Any],
     rows: list[list[Any]],
     row_numbers: list[int],
+    mapping: dict[str, str] | None = None,
 ) -> Dataset:
     if not raw_headers:
         raise DatasetError("The uploaded file does not contain a header row.")
@@ -266,6 +272,29 @@ def _build_dataset(
     if duplicates:
         joined = ", ".join(duplicates)
         raise DatasetError(f"Duplicate columns after normalization: {joined}.")
+
+    if mapping:
+        missing_sources = sorted(set(mapping) - set(normalized_columns))
+        if missing_sources:
+            joined = ", ".join(missing_sources)
+            raise MappingError(
+                f"Mapped source headers are not present in the file: {joined}."
+            )
+        normalized_columns = [
+            mapping.get(column, column) for column in normalized_columns
+        ]
+        mapped_duplicates = sorted(
+            {
+                column
+                for column in normalized_columns
+                if normalized_columns.count(column) > 1
+            }
+        )
+        if mapped_duplicates:
+            joined = ", ".join(mapped_duplicates)
+            raise MappingError(
+                f"Applying the mapping produces duplicate columns: {joined}."
+            )
 
     frame = pd.DataFrame(rows, columns=normalized_columns, dtype=object)
     present_columns = set(normalized_columns) & set(CANONICAL_COLUMNS)
@@ -294,7 +323,56 @@ def _build_dataset(
     )
 
 
-def parse_dataset(filename: str, content: bytes) -> Dataset:
+def parse_column_mapping(raw: str) -> dict[str, str]:
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise MappingError(
+            "The column mapping must be a valid JSON object of source "
+            "headers to canonical fields."
+        ) from exc
+    if not isinstance(parsed, dict) or not all(
+        isinstance(target, str) for target in parsed.values()
+    ):
+        raise MappingError(
+            "The column mapping must be a JSON object of source headers "
+            "to canonical fields."
+        )
+
+    mapping: dict[str, str] = {}
+    for source, target in parsed.items():
+        normalized_source = normalize_header(source)
+        if not normalized_source:
+            raise MappingError("Mapped source headers cannot be blank.")
+        if target not in CANONICAL_COLUMNS:
+            raise MappingError(
+                f"'{target}' is not a canonical field. Canonical fields "
+                "are: " + ", ".join(CANONICAL_COLUMNS) + "."
+            )
+        if normalized_source in mapping:
+            raise MappingError(
+                "Duplicate mapped source headers after normalization: "
+                f"{normalized_source}."
+            )
+        mapping[normalized_source] = target
+
+    targets = list(mapping.values())
+    duplicate_targets = sorted(
+        {target for target in targets if targets.count(target) > 1}
+    )
+    if duplicate_targets:
+        joined = ", ".join(duplicate_targets)
+        raise MappingError(
+            f"Multiple source headers map to the same canonical field: {joined}."
+        )
+    return mapping
+
+
+def parse_dataset(
+    filename: str,
+    content: bytes,
+    mapping: dict[str, str] | None = None,
+) -> Dataset:
     extension = Path(filename).suffix.lower()
     if extension not in {".csv", ".xlsx"}:
         raise DatasetError("Only .csv and .xlsx files are supported.")
@@ -305,4 +383,4 @@ def parse_dataset(filename: str, content: bytes) -> Dataset:
         headers, rows, row_numbers = _read_csv(content)
     else:
         headers, rows, row_numbers = _read_xlsx(content)
-    return _build_dataset(headers, rows, row_numbers)
+    return _build_dataset(headers, rows, row_numbers, mapping)
