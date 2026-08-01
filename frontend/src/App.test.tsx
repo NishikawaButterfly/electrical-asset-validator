@@ -2,7 +2,11 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
-import type { ComparisonResult, ValidationResult } from "./types/api";
+import type {
+  ComparisonResult,
+  InspectionResult,
+  ValidationResult,
+} from "./types/api";
 
 const validationResult: ValidationResult = {
   id: "validation-1",
@@ -68,6 +72,25 @@ const comparisonResult: ComparisonResult = {
   ],
 };
 
+const matchedInspection: InspectionResult = {
+  filename: "asset-register.csv",
+  columns: [
+    { header: "asset_tag", canonical_field: "asset_tag" },
+    { header: "circuit_ref", canonical_field: "circuit_ref" },
+  ],
+  unmatched_canonical_fields: [],
+};
+
+const unmatchedInspection: InspectionResult = {
+  filename: "asset-register.csv",
+  columns: [
+    { header: "asset_tag", canonical_field: "asset_tag" },
+    { header: "Voltage (V)", canonical_field: null },
+    { header: "Power Rating", canonical_field: null },
+  ],
+  unmatched_canonical_fields: ["voltage_v", "power_kw"],
+};
+
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -115,6 +138,9 @@ describe("App", () => {
     };
     const fetchMock = vi.fn(
       (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).endsWith("/api/v1/inspections") && init?.method === "POST") {
+          return Promise.resolve(jsonResponse(matchedInspection));
+        }
         if (String(input).endsWith("/api/v1/validations") && init?.method === "POST") {
           return Promise.resolve(jsonResponse(resultWithBoundaryScore));
         }
@@ -145,10 +171,169 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Download Excel" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Download PDF" })).toBeEnabled();
 
-    const postCall = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
+    const postCall = fetchMock.mock.calls.find(
+      ([input, init]) =>
+        String(input).endsWith("/api/v1/validations") && init?.method === "POST",
+    );
     expect(postCall).toBeDefined();
     const body = postCall?.[1]?.body as FormData;
     expect(body.get("file")).toBe(file);
+    expect(body.get("mapping")).toBeNull();
+  });
+
+  it("inspects the selected file and offers mapping for unmatched columns", async () => {
+    const fetchMock = vi.fn(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).endsWith("/api/v1/inspections") && init?.method === "POST") {
+          return Promise.resolve(jsonResponse(unmatchedInspection));
+        }
+        return Promise.resolve(jsonResponse([]));
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<App />);
+
+    const file = new File(["Voltage (V)\n230"], "asset-register.csv", {
+      type: "text/csv",
+    });
+    await user.upload(screen.getByLabelText("Asset register"), file);
+
+    expect(
+      await screen.findByText("Map unrecognized columns"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Still missing: voltage_v, power_kw."),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Voltage (V)")).toBeInTheDocument();
+    expect(screen.getByLabelText("Power Rating")).toBeInTheDocument();
+    expect(screen.queryByLabelText("asset_tag")).not.toBeInTheDocument();
+
+    const inspectionCall = fetchMock.mock.calls.find(
+      ([input, init]) =>
+        String(input).endsWith("/api/v1/inspections") && init?.method === "POST",
+    );
+    expect(inspectionCall).toBeDefined();
+    const body = inspectionCall?.[1]?.body as FormData;
+    expect(body.get("file")).toBe(file);
+  });
+
+  it("shows no mapping panel when every canonical field is matched", async () => {
+    const fetchMock = vi.fn(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).endsWith("/api/v1/inspections") && init?.method === "POST") {
+          return Promise.resolve(jsonResponse(matchedInspection));
+        }
+        return Promise.resolve(jsonResponse([]));
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<App />);
+
+    const file = new File(["asset_tag\nPDU-A-01"], "asset-register.csv", {
+      type: "text/csv",
+    });
+    await user.upload(screen.getByLabelText("Asset register"), file);
+
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([input]) =>
+          String(input).endsWith("/api/v1/inspections"),
+        ),
+      ).toBe(true);
+    });
+    expect(
+      screen.queryByText("Map unrecognized columns"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("sends the selected mapping with the validation upload", async () => {
+    const fetchMock = vi.fn(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).endsWith("/api/v1/inspections") && init?.method === "POST") {
+          return Promise.resolve(jsonResponse(unmatchedInspection));
+        }
+        if (String(input).endsWith("/api/v1/validations") && init?.method === "POST") {
+          return Promise.resolve(jsonResponse(validationResult));
+        }
+        return Promise.resolve(jsonResponse([]));
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<App />);
+
+    const file = new File(["Voltage (V)\n230"], "asset-register.csv", {
+      type: "text/csv",
+    });
+    await user.upload(screen.getByLabelText("Asset register"), file);
+
+    await user.selectOptions(
+      await screen.findByLabelText("Voltage (V)"),
+      "voltage_v",
+    );
+    expect(screen.getByText("Still missing: power_kw.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Run validation" }));
+
+    expect(await screen.findByText("Validation complete")).toBeInTheDocument();
+    const postCall = fetchMock.mock.calls.find(
+      ([input, init]) =>
+        String(input).endsWith("/api/v1/validations") && init?.method === "POST",
+    );
+    expect(postCall).toBeDefined();
+    const body = postCall?.[1]?.body as FormData;
+    expect(body.get("file")).toBe(file);
+    expect(body.get("mapping")).toBe(
+      JSON.stringify({ "Voltage (V)": "voltage_v" }),
+    );
+  });
+
+  it("falls back to a plain submission when inspection fails", async () => {
+    const fetchMock = vi.fn(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).endsWith("/api/v1/inspections") && init?.method === "POST") {
+          return Promise.resolve(
+            jsonResponse({ detail: "Inspection unavailable." }, 500),
+          );
+        }
+        if (String(input).endsWith("/api/v1/validations") && init?.method === "POST") {
+          return Promise.resolve(jsonResponse(validationResult));
+        }
+        return Promise.resolve(jsonResponse([]));
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<App />);
+
+    const file = new File(["Voltage (V)\n230"], "asset-register.csv", {
+      type: "text/csv",
+    });
+    await user.upload(screen.getByLabelText("Asset register"), file);
+
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([input]) =>
+          String(input).endsWith("/api/v1/inspections"),
+        ),
+      ).toBe(true);
+    });
+    expect(
+      screen.queryByText("Map unrecognized columns"),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Run validation" }));
+
+    expect(await screen.findByText("Validation complete")).toBeInTheDocument();
+    const postCall = fetchMock.mock.calls.find(
+      ([input, init]) =>
+        String(input).endsWith("/api/v1/validations") && init?.method === "POST",
+    );
+    expect(postCall).toBeDefined();
+    const body = postCall?.[1]?.body as FormData;
+    expect(body.get("file")).toBe(file);
+    expect(body.get("mapping")).toBeNull();
   });
 
   it("compares CSV and XLSX revisions with the expected multipart fields", async () => {

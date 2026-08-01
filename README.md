@@ -90,6 +90,11 @@ asset_tag,asset_name,asset_type,location,panel_tag,circuit_ref,voltage_v,power_k
 | `power_kw` | decimal | Required rated power in kilowatts; from 0 to 1,000,000 |
 | `status` | string | `active`, `standby`, `maintenance`, or `decommissioned` |
 
+Nonstandard headers do not have to be renamed in the source file. When a
+header cannot be matched, the upload form offers to map it to one of the
+missing canonical fields. The API accepts the same mapping as an optional
+`mapping` form field on validations and comparisons.
+
 Uploads are limited to 10 MiB by default, 50,000 non-empty data rows,
 64 columns, and 32,767 characters per cell. XLSX workbooks get extra safety
 limits on expanded archive size and compression ratio, and their used range
@@ -196,6 +201,10 @@ All application routes are versioned below `/api/v1`.
 | `GET` | `/validations/{id}/report.pdf` | Download a PDF validation report |
 | `POST` | `/comparisons` | Compare `before_file` and `after_file` uploads |
 | `GET` | `/comparisons/{id}` | Retrieve one comparison result |
+| `POST` | `/inspections` | Report an upload's headers and their canonical matches (`file`) |
+
+`POST /validations` and `POST /comparisons` also accept an optional `mapping`
+form field: a JSON object of source headers to canonical fields.
 
 Interactive request and response schemas are available from `/docs` when
 `EAV_DOCS_ENABLED=true`.
@@ -280,7 +289,8 @@ browser bundle.
 
 - Input is CSV and XLSX only. Legacy XLS and arbitrary workbook layouts are
   not supported.
-- No configurable column mapping, and no multi-sheet import workflow.
+- No multi-sheet import workflow. Column mappings apply to one upload and
+  are not saved for later runs.
 - Asset types are free text rather than a managed taxonomy.
 - Everything happens inside the request lifecycle: at most 50,000 non-empty
   rows per file, at most 10,000 validation finding details, and comparisons
@@ -296,10 +306,10 @@ browser bundle.
 
 ## Roadmap
 
-Things I'd like to add eventually: authentication and roles, and configurable
-column mapping so the nine-column format isn't mandatory. Asynchronous
-processing for registers too big for the current limits would come after
-that. No promises on timing.
+Things I'd like to add eventually: authentication and roles, and saved
+column mappings so a recurring format only has to be mapped once.
+Asynchronous processing for registers too big for the current limits would
+come after that. No promises on timing.
 
 ## License
 

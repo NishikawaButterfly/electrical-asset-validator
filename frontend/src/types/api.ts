@@ -45,6 +45,19 @@ export interface ValidationSummary {
   metrics: ValidationMetrics;
 }
 
+export interface InspectedColumn {
+  header: string;
+  canonical_field: string | null;
+}
+
+export interface InspectionResult {
+  filename: string;
+  columns: InspectedColumn[];
+  unmatched_canonical_fields: string[];
+}
+
+export type ColumnMapping = Record<string, string>;
+
 export interface ComparisonAsset {
   asset_tag: string;
   row: number;
