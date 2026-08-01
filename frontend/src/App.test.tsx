@@ -95,6 +95,19 @@ describe("App", () => {
     expect(await screen.findByText("No validations yet")).toBeInTheDocument();
   });
 
+  it("shows the demo notice only when the build sets one", async () => {
+    vi.stubEnv("VITE_DEMO_NOTICE", "Public demo. Fictional data only.");
+    const first = render(<App />);
+    expect(
+      await screen.findByText("Public demo. Fictional data only."),
+    ).toBeInTheDocument();
+    first.unmount();
+    vi.unstubAllEnvs();
+
+    render(<App />);
+    expect(screen.queryByRole("note")).not.toBeInTheDocument();
+  });
+
   it("uploads a file with the expected multipart field and renders results", async () => {
     const resultWithBoundaryScore = {
       ...validationResult,

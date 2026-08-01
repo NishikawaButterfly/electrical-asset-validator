@@ -113,6 +113,15 @@ p {
   min-height: 100vh;
 }
 
+.demo-notice {
+  margin: 0;
+  padding: 0.5rem 1.25rem;
+  background: #78430a;
+  color: #fdf3e3;
+  font-size: 0.875rem;
+  text-align: center;
+}
+
 .topbar {
   position: relative;
   z-index: 2;
