@@ -116,6 +116,9 @@ Open:
 - API documentation: <http://localhost:8000/docs>
 - health endpoint: <http://localhost:8000/api/v1/health>
 
+These addresses are served by the stack you just started, so they only respond
+while `docker compose up` is running.
+
 To customize ports or credentials:
 
 ```bash
