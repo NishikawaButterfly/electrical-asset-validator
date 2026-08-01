@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from .api import router
 from .config import Settings, get_settings
@@ -51,6 +53,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["*"],
     )
     application.include_router(router, prefix=runtime_settings.api_prefix)
+    if runtime_settings.static_dir is not None:
+        static_root = Path(runtime_settings.static_dir)
+        if not static_root.is_dir():
+            raise ValueError(f"EAV_STATIC_DIR is not a directory: {static_root}")
+        # Registered after the API router, so /api/v1 and /docs keep priority.
+        application.mount(
+            "/", StaticFiles(directory=static_root, html=True), name="frontend"
+        )
     return application
 
 
