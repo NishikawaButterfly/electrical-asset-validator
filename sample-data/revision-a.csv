@@ -1,0 +1,16 @@
+asset_tag,asset_name,asset_type,location,panel_tag,circuit_ref,voltage_v,power_kw,status
+PNL-MCC-01,Motor Control Centre 1,panel,Plant Room A,,,400,0,active
+PNL-HVAC-02,Roof HVAC Panel,panel,Roof Level,,,400,0,active
+PNL-HVAC-03,Workshop HVAC Panel,panel,Workshop Roof,,,400,0,active
+PNL-LTG-01,Level 1 Lighting Panel,panel,Level 1 North,,,230,0,active
+PNL-ESS-01,Essential Services Panel,panel,Control Room,,,230,0,active
+PNL-MSB-01,Main Switchboard Section 1,panel,Workshop,,,400,0,active
+PNL-PWR-03,Loading Dock Power Panel,panel,Loading Dock,,,230,0,active
+MTR-001,Main Chilled Water Pump,motor,Plant Room A,PNL-MCC-01,C01,400,18.5,active
+MTR-002,Standby Chilled Water Pump,motor,Plant Room A,PNL-MCC-01,C02,400,18.5,standby
+AHU-001,Office Air Handling Unit,ahu,Roof Level,PNL-HVAC-02,C14,400,11.0,active
+LGT-101,North Office Lighting,lighting,Level 1 North,PNL-LTG-01,C08,230,2.4,active
+UPS-001,Control Room UPS,ups,Control Room,PNL-ESS-01,C03,230,6.0,active
+DB-001,Workshop Distribution Board,distribution_board,Workshop,PNL-MSB-01,C21,400,25.0,active
+FAN-004,Extract Fan 4,fan,Workshop Roof,PNL-HVAC-03,C18,400,4.0,maintenance
+HTR-003,Dock Unit Heater,heater,Loading Dock,PNL-PWR-03,C07,230,3.0,active
