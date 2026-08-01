@@ -413,3 +413,65 @@ async def test_excel_report_preserves_a_max_length_formula_like_value(
     assert len(name_cell.value) == MAX_CELL_CHARACTERS
     assert name_cell.data_type == "s"
     assert name_cell.quotePrefix is True
+
+
+async def test_inspection_matches_standard_headers(
+    client: AsyncClient,
+    clean_csv: bytes,
+) -> None:
+    response = await client.post("/api/v1/inspections", files=_files(clean_csv))
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["filename"] == "assets.csv"
+    assert payload["columns"] == [
+        {"header": field, "canonical_field": field}
+        for field in CANONICAL_COLUMNS
+    ]
+    assert payload["unmatched_canonical_fields"] == []
+
+
+async def test_inspection_reports_unmatched_renamed_headers(
+    client: AsyncClient,
+) -> None:
+    content = (
+        "Equipment ID,Asset Name,asset_type,location,panel_tag,circuit_ref,"
+        "Volts,power_kw,status\n"
+        "PNL-A,Main Panel,panel,Plant 1,,,400,0,active\n"
+    ).encode()
+
+    response = await client.post(
+        "/api/v1/inspections",
+        files=_files(content, "renamed.csv"),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["columns"][0] == {
+        "header": "Equipment ID",
+        "canonical_field": None,
+    }
+    assert payload["columns"][1] == {
+        "header": "Asset Name",
+        "canonical_field": "asset_name",
+    }
+    assert payload["columns"][6] == {"header": "Volts", "canonical_field": None}
+    assert payload["unmatched_canonical_fields"] == ["asset_tag", "voltage_v"]
+
+
+async def test_inspection_rejects_invalid_and_oversized_files(
+    client: AsyncClient,
+) -> None:
+    unsupported = await client.post(
+        "/api/v1/inspections",
+        files=_files(b"not a register", "assets.txt"),
+    )
+    assert unsupported.status_code == 400
+    assert "Only .csv and .xlsx" in unsupported.json()["detail"]
+
+    oversized = await client.post(
+        "/api/v1/inspections",
+        files=_files(b"x" * (3 * 1024 * 1024)),
+    )
+    assert oversized.status_code == 413
+    assert "request body is too large" in oversized.json()["detail"]

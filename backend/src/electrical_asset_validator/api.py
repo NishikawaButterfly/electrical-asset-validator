@@ -34,6 +34,8 @@ from .schemas import (
     DownloadUrls,
     FieldChange,
     HealthResponse,
+    InspectedColumn,
+    InspectionResponse,
     IssueResponse,
     ValidationHistoryItem,
     ValidationMetrics,
@@ -41,8 +43,10 @@ from .schemas import (
 )
 from .services.comparison import compare_datasets
 from .services.ingest import (
+    CANONICAL_COLUMNS,
     DatasetError,
     MappingError,
+    normalize_header,
     parse_column_mapping,
     parse_dataset,
 )
@@ -422,3 +426,42 @@ def get_comparison(
     if comparison is None:
         raise HTTPException(status_code=404, detail="Comparison not found.")
     return _comparison_response(comparison)
+
+
+@router.post(
+    "/inspections",
+    response_model=InspectionResponse,
+    tags=["inspections"],
+)
+def create_inspection(
+    request: Request,
+    file: UploadFile = File(...),
+) -> InspectionResponse:
+    settings = _settings(request)
+    content = _read_upload(file, settings)
+    try:
+        dataset = parse_dataset(file.filename or "", content)
+    except DatasetError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    columns = []
+    for header in dataset.source_columns:
+        normalized = normalize_header(header)
+        columns.append(
+            InspectedColumn(
+                header=header,
+                canonical_field=(
+                    normalized if normalized in CANONICAL_COLUMNS else None
+                ),
+            )
+        )
+    unmatched = [
+        field
+        for field in CANONICAL_COLUMNS
+        if field not in dataset.present_columns
+    ]
+    return InspectionResponse(
+        filename=_safe_filename(file.filename, "upload"),
+        columns=columns,
+        unmatched_canonical_fields=unmatched,
+    )

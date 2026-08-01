@@ -100,3 +100,14 @@ class ComparisonResponse(BaseModel):
     added: list[AssetSnapshot]
     removed: list[AssetSnapshot]
     changed: list[ChangedAsset]
+
+
+class InspectedColumn(BaseModel):
+    header: str
+    canonical_field: str | None
+
+
+class InspectionResponse(BaseModel):
+    filename: str
+    columns: list[InspectedColumn]
+    unmatched_canonical_fields: list[str]
