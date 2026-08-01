@@ -236,6 +236,11 @@ curl --fail-with-body \
 a duplicate tag, missing values, invalid numbers, one removed asset, one
 added asset, and several field changes.
 
+For a longer worked example, [`docs/case-study.md`](docs/case-study.md)
+follows one register with nonstandard headers from header inspection and
+column mapping through validation, corrections, and a clean re-run. The
+exported report it produces is committed next to it.
+
 ## Project structure
 
 ```text
@@ -245,6 +250,7 @@ added asset, and several field changes.
 ├── sample-data/             Fictional demonstration revisions
 ├── docs/
 │   ├── architecture.md      Runtime boundaries and design decisions
+│   ├── case-study.md        Worked example from raw file to clean register
 │   └── rules.md             Validation and comparison rule catalogue
 ├── .github/workflows/ci.yml Backend and frontend continuous integration
 ├── .env.example             Local configuration template

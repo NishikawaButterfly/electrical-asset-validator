@@ -14,6 +14,8 @@ they are easy to inspect, diff, and reuse in command-line examples.
   removals, and field changes.
 - `invalid-register.csv` contains deliberate data-quality failures for the
   validation workflow.
+- `case-study/` holds the as-received and corrected registers used by the
+  worked example in [`../docs/case-study.md`](../docs/case-study.md).
 
 ## Expected comparison highlights
 
