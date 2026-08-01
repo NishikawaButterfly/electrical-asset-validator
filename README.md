@@ -10,6 +10,9 @@ or XLSX reports.
 public instance loaded with fictional sample data. Anything you upload is
 wiped when it restarts.
 
+There is also a [short demo video](https://github.com/NishikawaButterfly/electrical-asset-validator/releases/download/v0.1.0/validator-demo.mp4)
+of the whole flow, from mapping nonstandard columns to comparing revisions.
+
 ## Problem
 
 Electrical asset registers move between design, commissioning, and operations
