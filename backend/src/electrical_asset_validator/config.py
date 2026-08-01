@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./electrical_asset_validator.db"
     max_upload_mb: int = Field(default=10, ge=1, le=100)
     docs_enabled: bool = True
+    static_dir: str | None = None
     cors_origins: list[str] = Field(
         default_factory=lambda: [
             "http://localhost:3000",
