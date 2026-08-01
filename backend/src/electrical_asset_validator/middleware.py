@@ -44,6 +44,8 @@ class RequestBodyLimitMiddleware:
             file_count = 1
         elif path == f"{self.api_prefix}/comparisons":
             file_count = 2
+        elif path == f"{self.api_prefix}/inspections":
+            file_count = 1
         else:
             return None
         return self.max_upload_bytes * file_count + MULTIPART_OVERHEAD_BYTES
