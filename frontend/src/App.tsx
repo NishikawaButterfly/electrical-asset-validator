@@ -189,8 +189,15 @@ export default function App() {
     }
   };
 
+  const demoNotice = String(import.meta.env.VITE_DEMO_NOTICE ?? "").trim();
+
   return (
     <div className="app-shell">
+      {demoNotice ? (
+        <p className="demo-notice" role="note">
+          {demoNotice}
+        </p>
+      ) : null}
       <header className="topbar">
         <a className="brand" href="#main">
           <span className="brand__mark">
