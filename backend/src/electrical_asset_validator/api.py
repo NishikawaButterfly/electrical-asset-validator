@@ -4,7 +4,16 @@ from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+)
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session, selectinload
@@ -31,7 +40,12 @@ from .schemas import (
     ValidationResponse,
 )
 from .services.comparison import compare_datasets
-from .services.ingest import DatasetError, parse_dataset
+from .services.ingest import (
+    DatasetError,
+    MappingError,
+    parse_column_mapping,
+    parse_dataset,
+)
 from .services.reports import build_excel_report, build_pdf_report
 from .services.validation import validate_dataset
 
@@ -53,6 +67,15 @@ def _read_upload(upload: UploadFile, settings: Settings) -> bytes:
             detail=f"Each file must be no larger than {settings.max_upload_mb} MB.",
         )
     return content
+
+
+def _column_mapping(mapping: str | None) -> dict[str, str] | None:
+    if mapping is None:
+        return None
+    try:
+        return parse_column_mapping(mapping)
+    except MappingError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 def _utc_datetime(value: datetime) -> datetime:
@@ -182,12 +205,16 @@ def health(
 def create_validation(
     request: Request,
     file: UploadFile = File(...),
+    mapping: str | None = Form(default=None),
     session: Session = Depends(get_session),
 ) -> ValidationResponse:
     settings = _settings(request)
     content = _read_upload(file, settings)
+    column_mapping = _column_mapping(mapping)
     try:
-        dataset = parse_dataset(file.filename or "", content)
+        dataset = parse_dataset(file.filename or "", content, column_mapping)
+    except MappingError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except DatasetError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -314,15 +341,23 @@ def create_comparison(
     request: Request,
     before_file: UploadFile = File(...),
     after_file: UploadFile = File(...),
+    mapping: str | None = Form(default=None),
     session: Session = Depends(get_session),
 ) -> ComparisonResponse:
     settings = _settings(request)
     before_content = _read_upload(before_file, settings)
     after_content = _read_upload(after_file, settings)
+    column_mapping = _column_mapping(mapping)
     try:
-        before_dataset = parse_dataset(before_file.filename or "", before_content)
-        after_dataset = parse_dataset(after_file.filename or "", after_content)
+        before_dataset = parse_dataset(
+            before_file.filename or "", before_content, column_mapping
+        )
+        after_dataset = parse_dataset(
+            after_file.filename or "", after_content, column_mapping
+        )
         outcome = compare_datasets(before_dataset, after_dataset)
+    except MappingError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except DatasetError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
