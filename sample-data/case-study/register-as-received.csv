@@ -1,0 +1,23 @@
+Tag,Asset Name,Asset Type,Location,Panel,Circuit Ref,Voltage (V),Power (kW),Status
+PNL-C-01,Block C Main Switchboard,panel,Block C Switchroom,,,400,0,active
+PNL-C-L1,Level 1 Distribution Panel,panel,Block C Level 1,,,400,0,active
+PNL-C-L2,Level 2 Distribution Panel,panel,Block C Level 2,,,400,0,active
+PNL-C-MECH,Mechanical Services Panel,panel,Block C Plant Room,,,400,0,active
+PNL-C-SVR,Server Room Panel,panel,Block C Server Room,,,230,0,active
+PDU-A-01,Server Room PDU A,pdu,Block C Server Room,PNL-C-SVR,C01,230,8.0,active
+PDU-B-01,Server Room PDU B,pdu,Block C Server Room,PNL-C-SVR,C02,230,8.0,Active
+UPS-C-01,Server Room UPS,ups,Block C Server Room,PNL-C-SVR,C03,230,10.0,
+AHU-C-01,Level 1 Air Handling Unit,ahu,Block C Plant Room,PNL-C-MECH,C01,400,15.0,active
+AHU-C-02,Level 2 Air Handling Unit,ahu,Block C Plant Room,PNL-C-MECH,C02,400,15.0,active
+PMP-C-01,Chilled Water Pump 1,pump,Block C Plant Room,PNL-C-MECH,C03,400,11.0,active
+PMP-C-02,Chilled Water Pump 2,pump,Block C Plant Room,PNL-C-MECH,C04,400,11.0,standby
+PMP-C-03,Condenser Water Pump,pump,Block C Plant Room,PNL-C-MECH,C05,400,,active
+CHL-C-01,Chiller 1,chiller,Block C Roof,PNL-C-ROOF,C01,400,90.0,active
+FAN-C-01,Level 1 Toilet Exhaust Fan,fan,Block C Level 1,PNL-C-L1,C01,230,0.75,active
+FAN-C-02,Level 2 Toilet Exhaust Fan,fan,Block C Level 2,PNL-C-L2,C01,230,0.75,active
+FAN-C-02,Kitchen Extract Fan,fan,Block C Level 1,PNL-C-L1,C02,230,2.2,active
+LGT-C-101,Level 1 Office Lighting,lighting,Block C Level 1,PNL-C-L1,C03,230,3.2,active
+LGT-C-201,Level 2 Office Lighting,lighting,Block C Level 2,PNL-C-L2,C02,230,3.4,active
+LGT-C-202,Level 2 Meeting Room Lighting,lighting,Block C Level 2,PNL-C-L2,C03,-230,1.8,active
+HTR-C-01,Kitchen Instant Water Heater,heater,Block C Level 1,PNL-C-L1,C04,400,6.0,in service
+EF-C-01,Car Park Extract Fan,fan,Block C Car Park,,,400,5.5,active
