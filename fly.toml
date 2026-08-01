@@ -1,0 +1,28 @@
+app = "electrical-asset-validator"
+primary_region = "ams"
+
+[build]
+  [build.args]
+    VITE_DEMO_NOTICE = "Public demo. Fictional sample data only; anything you upload is wiped when the instance restarts."
+
+[env]
+  EAV_DOCS_ENABLED = "true"
+  EAV_MAX_UPLOAD_MB = "2"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "15s"
+    method = "GET"
+    path = "/api/v1/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
