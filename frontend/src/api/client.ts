@@ -1,5 +1,7 @@
 import type {
+  ColumnMapping,
   ComparisonResult,
+  InspectionResult,
   ReportFormat,
   ValidationResult,
   ValidationSummary,
@@ -77,12 +79,30 @@ export const api = {
 
   createValidation(
     file: File,
+    mapping?: ColumnMapping,
     signal?: AbortSignal,
   ): Promise<ValidationResult> {
     const body = new FormData();
     body.append("file", file);
+    if (mapping && Object.keys(mapping).length > 0) {
+      body.append("mapping", JSON.stringify(mapping));
+    }
 
     return requestJson<ValidationResult>("/validations", {
+      method: "POST",
+      body,
+      signal,
+    });
+  },
+
+  createInspection(
+    file: File,
+    signal?: AbortSignal,
+  ): Promise<InspectionResult> {
+    const body = new FormData();
+    body.append("file", file);
+
+    return requestJson<InspectionResult>("/inspections", {
       method: "POST",
       body,
       signal,

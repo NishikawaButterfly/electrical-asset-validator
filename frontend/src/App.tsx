@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, getErrorMessage } from "./api/client";
+import { ColumnMappingPanel } from "./components/ColumnMappingPanel";
 import { ComparisonResults } from "./components/ComparisonResults";
 import { FileDropzone } from "./components/FileDropzone";
 import { Icon } from "./components/Icons";
 import { RecentValidations } from "./components/RecentValidations";
 import { ValidationResults } from "./components/ValidationResults";
 import type {
+  ColumnMapping,
   ComparisonResult,
+  InspectionResult,
   ReportFormat,
   ValidationResult,
   ValidationSummary,
@@ -50,9 +53,13 @@ export default function App() {
   const [downloading, setDownloading] = useState<ReportFormat | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [completionAnnouncement, setCompletionAnnouncement] = useState("");
+  const [inspection, setInspection] = useState<InspectionResult | null>(null);
+  const [mappingSelections, setMappingSelections] = useState<ColumnMapping>({});
   const resultsRef = useRef<HTMLElement>(null);
+  const inspectionAbortRef = useRef<AbortController | null>(null);
 
   const isSubmitting = submissionState !== "idle";
+  const unmatchedFields = inspection?.unmatched_canonical_fields ?? [];
 
   const clearResults = () => {
     setValidationResult(null);
@@ -98,6 +105,39 @@ export default function App() {
     if (nextMode !== mode) clearResults();
   };
 
+  const handleValidationFileChange = (file: File | null) => {
+    setValidationFile(file);
+    setSubmissionError(null);
+    clearResults();
+    setInspection(null);
+    setMappingSelections({});
+    inspectionAbortRef.current?.abort();
+
+    if (!file) return;
+
+    const controller = new AbortController();
+    inspectionAbortRef.current = controller;
+
+    api
+      .createInspection(file, controller.signal)
+      .then(setInspection)
+      .catch((error: unknown) => {
+        // A failed inspection never blocks validation; the backend
+        // reports contract problems when the file is submitted.
+        if ((error as { name?: string }).name !== "AbortError") {
+          setInspection(null);
+        }
+      });
+  };
+
+  const buildMapping = (): ColumnMapping => {
+    const mapping: ColumnMapping = {};
+    for (const [header, field] of Object.entries(mappingSelections)) {
+      if (field !== "") mapping[header] = field;
+    }
+    return mapping;
+  };
+
   const handleValidation = async (event: FormEvent) => {
     event.preventDefault();
     if (!validationFile || isSubmitting) return;
@@ -107,7 +147,7 @@ export default function App() {
     clearResults();
 
     try {
-      const result = await api.createValidation(validationFile);
+      const result = await api.createValidation(validationFile, buildMapping());
       setValidationResult(result);
       setComparisonResult(null);
       setRecentItems((items) => [
@@ -311,13 +351,23 @@ export default function App() {
                   file={validationFile}
                   id="validation-file"
                   label="Asset register"
-                  onFileChange={(file) => {
-                    setValidationFile(file);
-                    setSubmissionError(null);
-                    clearResults();
-                  }}
+                  onFileChange={handleValidationFileChange}
                   onInvalidFile={setSubmissionError}
                 />
+                {validationFile && inspection && unmatchedFields.length > 0 && (
+                  <ColumnMappingPanel
+                    columns={inspection.columns}
+                    disabled={isSubmitting}
+                    onSelect={(header, field) =>
+                      setMappingSelections((selections) => ({
+                        ...selections,
+                        [header]: field,
+                      }))
+                    }
+                    selections={mappingSelections}
+                    unmatchedFields={unmatchedFields}
+                  />
+                )}
                 <div className="form-action">
                   <span>
                     {validationFile
