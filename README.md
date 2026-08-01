@@ -6,6 +6,10 @@ tells you what's wrong with it, and it can diff two revisions so you see what
 changed. Findings are reported per row, and results can be downloaded as PDF
 or XLSX reports.
 
+[**Try the live demo**](https://electrical-asset-validator.fly.dev/) - a small
+public instance loaded with fictional sample data. Anything you upload is
+wiped when it restarts.
+
 ## Problem
 
 Electrical asset registers move between design, commissioning, and operations
