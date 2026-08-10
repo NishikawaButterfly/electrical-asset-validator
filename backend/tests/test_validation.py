@@ -52,10 +52,7 @@ def test_core_data_quality_rules_are_reported(
     } <= rules
     assert outcome.valid_rows == 1
     assert outcome.quality_score < 100
-    assert all(
-        finding.severity in {"error", "warning", "info"}
-        for finding in outcome.findings
-    )
+    assert all(finding.severity in {"error", "warning", "info"} for finding in outcome.findings)
     status_finding = next(
         finding for finding in outcome.findings if finding.rule == "INVALID_STATUS"
     )
@@ -149,9 +146,7 @@ def test_blank_lines_preserve_finding_source_rows() -> None:
 def test_overlong_asset_tags_are_blocking_errors() -> None:
     tag = "A" * (MAX_ASSET_TAG_CHARACTERS + 1)
     content = (
-        ",".join(CANONICAL_COLUMNS)
-        + "\n"
-        + f"{tag},Panel A,panel,Plant 1,,,400,0,active\n"
+        ",".join(CANONICAL_COLUMNS) + "\n" + f"{tag},Panel A,panel,Plant 1,,,400,0,active\n"
     ).encode()
 
     outcome = validate_dataset(parse_dataset("long-tag.csv", content))
@@ -203,9 +198,7 @@ def test_finding_output_is_bounded(
             }
         )
 
-    outcome = validate_dataset(
-        parse_dataset("many-findings.csv", csv_bytes(invalid_rows))
-    )
+    outcome = validate_dataset(parse_dataset("many-findings.csv", csv_bytes(invalid_rows)))
 
     assert len(outcome.findings) == 5
     assert outcome.findings[-1].rule == "FINDING_LIMIT_REACHED"

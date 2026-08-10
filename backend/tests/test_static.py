@@ -28,9 +28,7 @@ async def test_static_dir_serves_frontend_and_keeps_api(tmp_path: Path) -> None:
     application = create_app(_settings(tmp_path, static_dir=str(static_root)))
     transport = ASGITransport(app=application)
     async with application.router.lifespan_context(application):
-        async with AsyncClient(
-            transport=transport, base_url="http://testserver"
-        ) as client:
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
             index = await client.get("/")
             assert index.status_code == 200
             assert "frontend" in index.text
@@ -44,9 +42,7 @@ async def test_root_is_not_served_without_static_dir(tmp_path: Path) -> None:
     application = create_app(_settings(tmp_path))
     transport = ASGITransport(app=application)
     async with application.router.lifespan_context(application):
-        async with AsyncClient(
-            transport=transport, base_url="http://testserver"
-        ) as client:
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
             assert (await client.get("/")).status_code == 404
 
 

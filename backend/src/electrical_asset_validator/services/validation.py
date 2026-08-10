@@ -198,9 +198,7 @@ def _add_naming_findings(
     fields = ("asset_type", "location")
     for field in fields:
         values = [
-            compact_spaces(record[field])
-            for record in records
-            if not is_blank(record.get(field))
+            compact_spaces(record[field]) for record in records if not is_blank(record.get(field))
         ]
         if not values:
             continue
@@ -208,19 +206,11 @@ def _add_naming_findings(
         variants: dict[str, Counter[str]] = defaultdict(Counter)
         for value in values:
             variants[value.casefold()][value] += 1
-        preferred_by_key = {
-            key: counts.most_common(1)[0][0] for key, counts in variants.items()
-        }
+        preferred_by_key = {key: counts.most_common(1)[0][0] for key, counts in variants.items()}
 
         canonical_counts = Counter(value.casefold() for value in values)
-        canonical_labels = {
-            key: preferred_by_key[key] for key in canonical_counts
-        }
-        common_keys = [
-            key
-            for key, count in canonical_counts.items()
-            if count >= 2
-        ]
+        canonical_labels = {key: preferred_by_key[key] for key in canonical_counts}
+        common_keys = [key for key, count in canonical_counts.items() if count >= 2]
 
         for row_number, record in zip(row_numbers, records, strict=True):
             value = record.get(field)
@@ -315,9 +305,7 @@ def validate_dataset(dataset: Dataset) -> ValidationOutcome:
                 )
             if not ASSET_TAG_PATTERN.fullmatch(asset_tag):
                 suggestion = (
-                    normalized_tag
-                    if ASSET_TAG_PATTERN.fullmatch(normalized_tag)
-                    else None
+                    normalized_tag if ASSET_TAG_PATTERN.fullmatch(normalized_tag) else None
                 )
                 findings.append(
                     Finding(
@@ -375,9 +363,7 @@ def validate_dataset(dataset: Dataset) -> ValidationOutcome:
         if not is_blank(status):
             normalized_status = normalize_category(status)
             if normalized_status not in ALLOWED_STATUSES:
-                matches = get_close_matches(
-                    normalized_status, ALLOWED_STATUSES, n=1, cutoff=0.8
-                )
+                matches = get_close_matches(normalized_status, ALLOWED_STATUSES, n=1, cutoff=0.8)
                 findings.append(
                     Finding(
                         severity="error",
@@ -385,11 +371,7 @@ def validate_dataset(dataset: Dataset) -> ValidationOutcome:
                         row=row_number,
                         asset_tag=asset_tag,
                         field="status",
-                        message=(
-                            "Status must be one of: "
-                            + ", ".join(ALLOWED_STATUSES)
-                            + "."
-                        ),
+                        message=("Status must be one of: " + ", ".join(ALLOWED_STATUSES) + "."),
                         suggestion=matches[0] if matches else None,
                     )
                 )
@@ -475,9 +457,7 @@ def validate_dataset(dataset: Dataset) -> ValidationOutcome:
             normalized_panel = normalize_asset_tag(panel_tag)
             if not ASSET_TAG_PATTERN.fullmatch(str(panel_tag)):
                 suggestion = (
-                    normalized_panel
-                    if ASSET_TAG_PATTERN.fullmatch(normalized_panel)
-                    else None
+                    normalized_panel if ASSET_TAG_PATTERN.fullmatch(normalized_panel) else None
                 )
                 findings.append(
                     Finding(
@@ -533,8 +513,7 @@ def validate_dataset(dataset: Dataset) -> ValidationOutcome:
                             asset_tag=asset_tag,
                             field="panel_tag",
                             message=(
-                                f"Asset location differs from panel '{normalized_panel}' "
-                                "location."
+                                f"Asset location differs from panel '{normalized_panel}' location."
                             ),
                             suggestion=str(target_location),
                         )
@@ -544,9 +523,7 @@ def validate_dataset(dataset: Dataset) -> ValidationOutcome:
             normalized_circuit = normalize_circuit(circuit_ref)
             if not CIRCUIT_PATTERN.fullmatch(str(circuit_ref)):
                 suggestion = (
-                    normalized_circuit
-                    if CIRCUIT_PATTERN.fullmatch(normalized_circuit)
-                    else None
+                    normalized_circuit if CIRCUIT_PATTERN.fullmatch(normalized_circuit) else None
                 )
                 findings.append(
                     Finding(

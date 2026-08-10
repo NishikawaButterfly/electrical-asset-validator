@@ -425,8 +425,7 @@ async def test_inspection_matches_standard_headers(
     payload = response.json()
     assert payload["filename"] == "assets.csv"
     assert payload["columns"] == [
-        {"header": field, "canonical_field": field}
-        for field in CANONICAL_COLUMNS
+        {"header": field, "canonical_field": field} for field in CANONICAL_COLUMNS
     ]
     assert payload["unmatched_canonical_fields"] == []
 

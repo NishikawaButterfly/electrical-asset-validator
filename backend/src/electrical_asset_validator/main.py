@@ -63,9 +63,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not static_root.is_dir():
             raise ValueError(f"EAV_STATIC_DIR is not a directory: {static_root}")
         # Registered after the API router, so /api/v1 and /docs keep priority.
-        application.mount(
-            "/", StaticFiles(directory=static_root, html=True), name="frontend"
-        )
+        application.mount("/", StaticFiles(directory=static_root, html=True), name="frontend")
     return application
 
 

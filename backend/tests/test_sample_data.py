@@ -33,9 +33,7 @@ def test_documented_sample_workflows_remain_reproducible() -> None:
     assert invalid_validation.warning_count == 5
     assert invalid_validation.quality_score == 58.2
     commissioning_finding = next(
-        finding
-        for finding in invalid_validation.findings
-        if finding.rule == "INVALID_STATUS"
+        finding for finding in invalid_validation.findings if finding.rule == "INVALID_STATUS"
     )
     assert commissioning_finding.suggestion is None
     assert len(comparison.added) == 1

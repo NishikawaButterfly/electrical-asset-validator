@@ -166,10 +166,7 @@ def _comparison_response(comparison: ComparisonRun) -> ComparisonResponse:
         changed=[
             ChangedAsset(
                 asset_tag=item["asset_tag"],
-                changes=[
-                    FieldChange.model_validate(change)
-                    for change in item.get("changes", [])
-                ],
+                changes=[FieldChange.model_validate(change) for change in item.get("changes", [])],
             )
             for item in comparison.changed
         ],
@@ -316,13 +313,9 @@ def download_excel_report(
     report = build_excel_report(validation)
     return StreamingResponse(
         BytesIO(report),
-        media_type=(
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        ),
+        media_type=("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
         headers={
-            "Content-Disposition": (
-                f'attachment; filename="validation-{validation.id}.xlsx"'
-            )
+            "Content-Disposition": (f'attachment; filename="validation-{validation.id}.xlsx"')
         },
     )
 
@@ -343,9 +336,7 @@ def download_pdf_report(
         BytesIO(report),
         media_type="application/pdf",
         headers={
-            "Content-Disposition": (
-                f'attachment; filename="validation-{validation.id}.pdf"'
-            )
+            "Content-Disposition": (f'attachment; filename="validation-{validation.id}.pdf"')
         },
     )
 
@@ -369,12 +360,8 @@ def create_comparison(
     after_content = _read_upload(after_file, settings)
     column_mapping = _column_mapping(mapping)
     try:
-        before_dataset = parse_dataset(
-            before_file.filename or "", before_content, column_mapping
-        )
-        after_dataset = parse_dataset(
-            after_file.filename or "", after_content, column_mapping
-        )
+        before_dataset = parse_dataset(before_file.filename or "", before_content, column_mapping)
+        after_dataset = parse_dataset(after_file.filename or "", after_content, column_mapping)
         outcome = compare_datasets(before_dataset, after_dataset)
     except MappingError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -473,16 +460,10 @@ def create_inspection(
         columns.append(
             InspectedColumn(
                 header=header,
-                canonical_field=(
-                    normalized if normalized in CANONICAL_COLUMNS else None
-                ),
+                canonical_field=(normalized if normalized in CANONICAL_COLUMNS else None),
             )
         )
-    unmatched = [
-        field
-        for field in CANONICAL_COLUMNS
-        if field not in dataset.present_columns
-    ]
+    unmatched = [field for field in CANONICAL_COLUMNS if field not in dataset.present_columns]
     return InspectionResponse(
         filename=_safe_filename(file.filename, "upload"),
         columns=columns,

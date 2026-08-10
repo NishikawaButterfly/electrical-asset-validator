@@ -49,8 +49,7 @@ def test_case_study_walkthrough_remains_reproducible() -> None:
     assert received_validation.warning_count == 4
     assert received_validation.info_count == 0
     assert Counter(
-        (finding.severity, finding.rule)
-        for finding in received_validation.findings
+        (finding.severity, finding.rule) for finding in received_validation.findings
     ) == Counter(
         {
             ("error", "DUPLICATE_ASSET_TAG"): 2,

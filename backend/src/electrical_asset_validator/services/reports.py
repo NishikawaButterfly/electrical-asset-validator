@@ -60,10 +60,7 @@ def _style_sheet(sheet: Any) -> None:
         cell.font = HEADER_FONT
         cell.alignment = Alignment(horizontal="center")
     for column_cells in sheet.columns:
-        width = max(
-            len(str(cell.value)) if cell.value is not None else 0
-            for cell in column_cells
-        )
+        width = max(len(str(cell.value)) if cell.value is not None else 0 for cell in column_cells)
         sheet.column_dimensions[get_column_letter(column_cells[0].column)].width = min(
             max(width + 2, 10), 45
         )
