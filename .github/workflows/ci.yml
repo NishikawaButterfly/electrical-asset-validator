@@ -81,8 +81,20 @@ jobs:
       - name: Install backend
         run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
 
-      - name: Run backend tests
-        run: python -m pytest
+      - name: Check backend formatting
+        run: python -m ruff format --check .
+
+      - name: Lint backend
+        run: python -m ruff check .
+
+      - name: Type-check backend
+        run: python -m mypy
+
+      - name: Run backend tests with coverage
+        # The gate sits just under the measured 92.29% so real regressions
+        # fail while incidental line shuffling does not. Local runs skip
+        # coverage to stay fast; this is the only place the threshold lives.
+        run: python -m pytest --cov=electrical_asset_validator --cov-fail-under=91
 
   frontend:
     name: Frontend
