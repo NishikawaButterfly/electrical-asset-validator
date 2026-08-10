@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from electrical_asset_validator.services import validation as validation_service
 from electrical_asset_validator.services.ingest import CANONICAL_COLUMNS, parse_dataset
 from electrical_asset_validator.services.validation import (
@@ -179,7 +181,7 @@ def test_score_cannot_round_to_100_when_a_blocking_error_exists() -> None:
 
 
 def test_finding_output_is_bounded(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
     clean_rows: list[dict[str, object]],
 ) -> None:
     monkeypatch.setattr(validation_service, "MAX_FINDINGS", 5)

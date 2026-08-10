@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from typing import Any
-
 import pytest
+from starlette.types import Message, Receive, Scope, Send
 
 from electrical_asset_validator import middleware as middleware_module
 from electrical_asset_validator.middleware import RequestBodyLimitMiddleware
@@ -11,12 +10,12 @@ pytestmark = pytest.mark.anyio
 
 
 async def test_streamed_request_body_is_limited_without_content_length(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(middleware_module, "MULTIPART_OVERHEAD_BYTES", 0)
     downstream_completed = False
 
-    async def downstream(scope, receive, send) -> None:
+    async def downstream(scope: Scope, receive: Receive, send: Send) -> None:
         nonlocal downstream_completed
         while True:
             message = await receive()
@@ -26,16 +25,16 @@ async def test_streamed_request_body_is_limited_without_content_length(
         await send({"type": "http.response.start", "status": 204, "headers": []})
         await send({"type": "http.response.body", "body": b""})
 
-    messages: list[dict[str, Any]] = [
+    messages: list[Message] = [
         {"type": "http.request", "body": b"123", "more_body": True},
         {"type": "http.request", "body": b"45", "more_body": False},
     ]
-    sent: list[dict[str, Any]] = []
+    sent: list[Message] = []
 
-    async def receive() -> dict[str, Any]:
+    async def receive() -> Message:
         return messages.pop(0)
 
-    async def send(message: dict[str, Any]) -> None:
+    async def send(message: Message) -> None:
         sent.append(message)
 
     application = RequestBodyLimitMiddleware(

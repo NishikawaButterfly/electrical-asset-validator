@@ -222,13 +222,13 @@ def _add_naming_findings(
         ]
 
         for row_number, record in zip(row_numbers, records, strict=True):
-            value = record.get(field)
-            if is_blank(value):
+            raw_value = record.get(field)
+            if is_blank(raw_value):
                 continue
-            compact = compact_spaces(value)
+            compact = compact_spaces(raw_value)
             key = compact.casefold()
             preferred = preferred_by_key[key]
-            if str(value) != preferred:
+            if str(raw_value) != preferred:
                 findings.append(
                     Finding(
                         severity="warning",

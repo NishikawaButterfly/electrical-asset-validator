@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import AsyncIterator
 from io import BytesIO
 
 import pytest
@@ -316,7 +317,7 @@ async def test_streamed_multipart_overflow_returns_413(
 ) -> None:
     boundary = "eav-stream-boundary"
 
-    async def request_body():
+    async def request_body() -> AsyncIterator[bytes]:
         yield (
             f"--{boundary}\r\n"
             'Content-Disposition: form-data; name="file"; filename="assets.csv"\r\n'

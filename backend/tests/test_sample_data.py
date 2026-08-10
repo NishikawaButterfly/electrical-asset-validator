@@ -3,14 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 
 from electrical_asset_validator.services.comparison import compare_datasets
-from electrical_asset_validator.services.ingest import parse_dataset
+from electrical_asset_validator.services.ingest import Dataset, parse_dataset
 from electrical_asset_validator.services.validation import validate_dataset
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SAMPLE_DATA = PROJECT_ROOT / "sample-data"
 
 
-def _sample(name: str):
+def _sample(name: str) -> Dataset:
     path = SAMPLE_DATA / name
     return parse_dataset(path.name, path.read_bytes())
 

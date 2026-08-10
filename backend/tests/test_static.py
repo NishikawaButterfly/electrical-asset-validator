@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -9,7 +10,7 @@ from electrical_asset_validator.config import Settings
 from electrical_asset_validator.main import create_app
 
 
-def _settings(tmp_path: Path, **overrides: object) -> Settings:
+def _settings(tmp_path: Path, **overrides: Any) -> Settings:
     database_path = (tmp_path / "static-test.db").as_posix()
     return Settings(
         database_url=f"sqlite:///{database_path}",

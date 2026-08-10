@@ -32,6 +32,7 @@ def test_csv_headers_are_safely_normalized() -> None:
 def test_xlsx_first_worksheet_is_supported() -> None:
     workbook = Workbook()
     sheet = workbook.active
+    assert sheet is not None
     sheet.append(CANONICAL_COLUMNS)
     sheet.append(["PNL-A", "Main Panel", "panel", "Plant 1", None, None, 400, 0, "active"])
     output = BytesIO()
@@ -70,6 +71,7 @@ def test_literal_na_text_is_not_coerced_to_missing() -> None:
 def test_exact_duplicate_xlsx_headers_are_rejected() -> None:
     workbook = Workbook()
     sheet = workbook.active
+    assert sheet is not None
     sheet.append(["asset_tag", "asset_tag"])
     sheet.append(["PNL-A", "PNL-B"])
     output = BytesIO()
@@ -100,6 +102,7 @@ def test_xlsx_row_limit_counts_non_empty_rows(
     monkeypatch.setattr(ingest, "MAX_ROWS", 1)
     workbook = Workbook()
     sheet = workbook.active
+    assert sheet is not None
     sheet.append(CANONICAL_COLUMNS)
     sheet.append([None] * len(CANONICAL_COLUMNS))
     sheet.append(["PNL-A", "Main Panel", "panel", "Plant 1", None, None, 400, 0, "active"])

@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
+from typing import cast
 
 from fastapi import (
     APIRouter,
@@ -37,6 +38,7 @@ from .schemas import (
     InspectedColumn,
     InspectionResponse,
     IssueResponse,
+    Severity,
     ValidationHistoryItem,
     ValidationMetrics,
     ValidationResponse,
@@ -58,7 +60,9 @@ router = APIRouter()
 
 
 def _settings(request: Request) -> Settings:
-    return request.app.state.settings
+    # Starlette application state is untyped; create_app always stores Settings.
+    settings: Settings = request.app.state.settings
+    return settings
 
 
 def _read_upload(upload: UploadFile, settings: Settings) -> bytes:
@@ -122,7 +126,9 @@ def _validation_response(
         issues=[
             IssueResponse(
                 id=str(issue.id),
-                severity=issue.severity,  # type: ignore[arg-type]
+                # The column stores a plain string; only the rule engine's
+                # Severity literals are ever written to it.
+                severity=cast(Severity, issue.severity),
                 rule=issue.rule,
                 row=issue.row_number,
                 asset_tag=issue.asset_tag,

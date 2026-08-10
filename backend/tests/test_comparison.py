@@ -114,6 +114,7 @@ def test_equivalent_csv_and_xlsx_numbers_compare_as_unchanged() -> None:
 
     workbook = Workbook()
     sheet = workbook.active
+    assert sheet is not None
     sheet.append(CANONICAL_COLUMNS)
     sheet.append([row[column] for column in CANONICAL_COLUMNS])
     output = BytesIO()
@@ -138,6 +139,7 @@ def test_equivalent_textual_csv_and_numeric_xlsx_cells_are_unchanged() -> None:
     xlsx_row["location"] = 1
     workbook = Workbook()
     sheet = workbook.active
+    assert sheet is not None
     sheet.append(CANONICAL_COLUMNS)
     sheet.append([xlsx_row[column] for column in CANONICAL_COLUMNS])
     output = BytesIO()
@@ -150,7 +152,7 @@ def test_equivalent_textual_csv_and_numeric_xlsx_cells_are_unchanged() -> None:
     assert outcome.changed == []
 
 
-def test_comparison_detail_output_is_bounded(monkeypatch) -> None:
+def test_comparison_detail_output_is_bounded(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(comparison_service, "MAX_COMPARISON_DETAILS", 1)
     before = parse_dataset(
         "before.csv",

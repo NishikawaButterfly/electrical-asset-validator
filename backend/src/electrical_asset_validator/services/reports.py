@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from io import BytesIO
-from typing import Any
+from typing import Any, cast
 from xml.sax.saxutils import escape
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.worksheet import Worksheet
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_LEFT
 from reportlab.lib.pagesizes import A4, landscape
@@ -37,7 +38,7 @@ def _utc_isoformat(value: datetime) -> str:
     return value.isoformat().replace("+00:00", "Z")
 
 
-def _append_excel_row(sheet: Any, values: list[Any] | tuple[Any, ...]) -> None:
+def _append_excel_row(sheet: Worksheet, values: list[Any] | tuple[Any, ...]) -> None:
     row_values = list(values)
     sheet.append(row_values)
     row_number = sheet.max_row
@@ -52,23 +53,27 @@ def _append_excel_row(sheet: Any, values: list[Any] | tuple[Any, ...]) -> None:
         cell.quotePrefix = True
 
 
-def _style_sheet(sheet: Any) -> None:
+def _style_sheet(sheet: Worksheet) -> None:
     sheet.freeze_panes = "A2"
     sheet.auto_filter.ref = sheet.dimensions
     for cell in sheet[1]:
         cell.fill = HEADER_FILL
         cell.font = HEADER_FONT
         cell.alignment = Alignment(horizontal="center")
-    for column_cells in sheet.columns:
+    # Both report sheets are built from cell A1, so enumerating the columns
+    # yields their real positions without reading the stub-optional Cell.column.
+    for column_number, column_cells in enumerate(sheet.columns, start=1):
         width = max(len(str(cell.value)) if cell.value is not None else 0 for cell in column_cells)
-        sheet.column_dimensions[get_column_letter(column_cells[0].column)].width = min(
+        sheet.column_dimensions[get_column_letter(column_number)].width = min(
             max(width + 2, 10), 45
         )
 
 
 def build_excel_report(validation: ValidationRun) -> bytes:
     workbook = Workbook()
-    summary = workbook.active
+    # The stubs mark .active as optional and possibly read-only; a Workbook
+    # created in write mode always starts with one writable worksheet.
+    summary = cast(Worksheet, workbook.active)
     summary.title = "Summary"
     _append_excel_row(summary, ["Metric", "Value"])
     for label, value in (

@@ -8,6 +8,7 @@ import pytest
 
 from electrical_asset_validator.services.comparison import compare_datasets
 from electrical_asset_validator.services.ingest import (
+    Dataset,
     DatasetError,
     parse_column_mapping,
     parse_dataset,
@@ -28,7 +29,7 @@ CASE_STUDY_MAPPING = json.dumps(
 )
 
 
-def _case_study(name: str):
+def _case_study(name: str) -> Dataset:
     path = CASE_STUDY_DATA / name
     mapping = parse_column_mapping(CASE_STUDY_MAPPING)
     return parse_dataset(path.name, path.read_bytes(), mapping)
