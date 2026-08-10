@@ -84,16 +84,24 @@ data-quality failures.
 
 ### Database
 
-- run metadata and processed results, keyed to an opaque per-session token
+- run metadata and processed results, keyed to an opaque scope key: the
+  session cookie value, or a hash of the bearer token when auth is enabled
 - health-gated startup in Docker Compose
 - persistent named volume for local deployments
 
 Uploaded files and validation results can contain infrastructure information.
-Stored runs are scoped to a random httponly session cookie, so one browser
-session cannot list or fetch another's runs or reports; this is isolation,
-not authentication. `EAV_DEMO_RETENTION_MINUTES` optionally deletes runs
+By default stored runs are scoped to a random httponly session cookie, so one
+browser session cannot list or fetch another's runs or reports; this is
+isolation, not authentication. Setting `EAV_API_TOKENS` upgrades that to
+mandatory bearer-token authentication: the token replaces the cookie as the
+scope key (stored as a SHA-256, so a database dump cannot leak credentials),
+requests without a valid token get 401, and one token's runs answer 404 to
+every other token. Tokens are shared secrets rather than user accounts, and
+TLS in front of the API is the deployer's responsibility.
+`EAV_DEMO_RETENTION_MINUTES` optionally deletes runs
 older than the window, swept lazily on the next API request - the public
-demo uses it. Database backups, longer-term retention policy, access
+demo uses it and deliberately leaves token auth off, since the demo is meant
+to be open. Database backups, longer-term retention policy, access
 control, and encryption remain deployment responsibilities.
 
 ## Key decisions

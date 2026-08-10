@@ -35,6 +35,8 @@ jobs:
         run: |
           curl --fail --show-error http://127.0.0.1:8000/api/v1/health
           curl --fail --show-error http://127.0.0.1:3000/health
+          curl --fail --show-error --silent http://127.0.0.1:8000/api/v1/config \
+            | grep --fixed-strings '"auth_required":false'
 
       - name: Verify proxied PostgreSQL write and read
         run: |
@@ -54,6 +56,51 @@ jobs:
           status="$(
             curl --silent --output /dev/null --write-out '%{http_code}' \
               "http://127.0.0.1:3000/api/v1/validations/${validation_id}"
+          )"
+          test "${status}" = "404"
+
+      - name: Verify the authenticated path with two isolated tokens
+        env:
+          # Fictional smoke-test tokens; the comma-separated form also
+          # exercises the EAV_API_TOKENS parser in a real deployment.
+          EAV_API_TOKENS: smoke-alpha-token,smoke-beta-token
+        run: |
+          # Recreate only the backend with auth enabled; its health check
+          # stays green because /health remains unauthenticated.
+          docker compose --env-file .env.example up --detach --wait backend
+          curl --fail --show-error --silent http://127.0.0.1:8000/api/v1/config \
+            | grep --fixed-strings '"auth_required":true'
+          status="$(
+            curl --silent --output /dev/null --write-out '%{http_code}' \
+              --dump-header /tmp/unauthorized-headers.txt \
+              http://127.0.0.1:8000/api/v1/validations
+          )"
+          test "${status}" = "401"
+          grep --ignore-case '^www-authenticate: Bearer' /tmp/unauthorized-headers.txt
+          status="$(
+            curl --silent --output /dev/null --write-out '%{http_code}' \
+              --header "Authorization: Bearer not-a-configured-token" \
+              http://127.0.0.1:8000/api/v1/validations
+          )"
+          test "${status}" = "401"
+          curl --fail --show-error \
+            --header "Authorization: Bearer smoke-alpha-token" \
+            --form "file=@sample-data/revision-a.csv;type=text/csv" \
+            --output /tmp/token-validation.json \
+            http://127.0.0.1:8000/api/v1/validations
+          validation_id="$(
+            python -c "import json; print(json.load(open('/tmp/token-validation.json'))['id'])"
+          )"
+          # The creating token reads its run back without any cookie jar.
+          curl --fail --show-error \
+            --header "Authorization: Bearer smoke-alpha-token" \
+            --output /dev/null \
+            "http://127.0.0.1:8000/api/v1/validations/${validation_id}"
+          # The other configured token authenticates but sees a 404.
+          status="$(
+            curl --silent --output /dev/null --write-out '%{http_code}' \
+              --header "Authorization: Bearer smoke-beta-token" \
+              "http://127.0.0.1:8000/api/v1/validations/${validation_id}"
           )"
           test "${status}" = "404"
 

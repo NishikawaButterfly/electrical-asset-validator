@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { api, getErrorMessage } from "./api/client";
+import {
+  api,
+  getErrorMessage,
+  getStoredApiToken,
+  setStoredApiToken,
+} from "./api/client";
 import { ColumnMappingPanel } from "./components/ColumnMappingPanel";
 import { ComparisonResults } from "./components/ComparisonResults";
 import { FileDropzone } from "./components/FileDropzone";
@@ -55,6 +60,10 @@ export default function App() {
   const [completionAnnouncement, setCompletionAnnouncement] = useState("");
   const [inspection, setInspection] = useState<InspectionResult | null>(null);
   const [mappingSelections, setMappingSelections] = useState<ColumnMapping>({});
+  const [configLoaded, setConfigLoaded] = useState(false);
+  const [authRequired, setAuthRequired] = useState(false);
+  const [apiToken, setApiToken] = useState(() => getStoredApiToken());
+  const [tokenDraft, setTokenDraft] = useState(() => getStoredApiToken());
   const resultsRef = useRef<HTMLElement>(null);
   const inspectionAbortRef = useRef<AbortController | null>(null);
 
@@ -83,6 +92,28 @@ export default function App() {
     const controller = new AbortController();
 
     api
+      .getConfig(controller.signal)
+      .then((config) => setAuthRequired(Boolean(config.auth_required)))
+      .catch(() => {
+        // Backends without /config are open deployments.
+        setAuthRequired(false);
+      })
+      .finally(() => setConfigLoaded(true));
+
+    return () => controller.abort();
+  }, []);
+
+  // Without a token every request would answer 401, so the history fetch
+  // waits until one is supplied; the render derives an empty, non-loading
+  // list for that state instead of storing it.
+  const recentBlocked = authRequired && !apiToken;
+
+  useEffect(() => {
+    if (!configLoaded || recentBlocked) return;
+
+    const controller = new AbortController();
+
+    api
       .listValidations(controller.signal)
       .then((items) => {
         setRecentItems(items);
@@ -96,7 +127,15 @@ export default function App() {
       .finally(() => setRecentLoading(false));
 
     return () => controller.abort();
-  }, []);
+  }, [configLoaded, recentBlocked, apiToken]);
+
+  const handleTokenSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    const token = tokenDraft.trim();
+    setStoredApiToken(token);
+    setApiToken(token);
+    setSubmissionError(null);
+  };
 
   const selectMode = (nextMode: WorkspaceMode) => {
     if (isSubmitting) return;
@@ -283,6 +322,33 @@ export default function App() {
         </section>
 
         <div className="content-shell">
+          {authRequired && (
+            <section aria-labelledby="token-title" className="panel token-panel">
+              <div>
+                <strong id="token-title">API token required</strong>
+                <p>
+                  This deployment only answers requests that carry an access
+                  token. The token stays in this browser.
+                </p>
+              </div>
+              <form onSubmit={handleTokenSubmit}>
+                <label className="sr-only" htmlFor="api-token">
+                  API token
+                </label>
+                <input
+                  autoComplete="off"
+                  id="api-token"
+                  onChange={(event) => setTokenDraft(event.target.value)}
+                  placeholder="Paste the token from your operator"
+                  type="password"
+                  value={tokenDraft}
+                />
+                <button className="button button--primary" type="submit">
+                  {apiToken ? "Update token" : "Use token"}
+                </button>
+              </form>
+            </section>
+          )}
           <section className="workspace panel" aria-labelledby="workspace-title">
             <div className="workspace__intro">
               <div>
@@ -555,9 +621,9 @@ export default function App() {
           </p>
 
           <RecentValidations
-            error={recentError}
-            items={recentItems}
-            loading={recentLoading}
+            error={recentBlocked ? null : recentError}
+            items={recentBlocked ? [] : recentItems}
+            loading={recentLoading && !recentBlocked}
             onOpen={handleOpenValidation}
             openingId={openingId}
           />

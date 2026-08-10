@@ -26,6 +26,7 @@ services:
       EAV_DATABASE_URL: ${EAV_DATABASE_URL:-postgresql+psycopg://asset_validator:change-me-for-non-local-use@postgres:5432/asset_validator}
       EAV_MAX_UPLOAD_MB: ${EAV_MAX_UPLOAD_MB:-10}
       EAV_DOCS_ENABLED: ${EAV_DOCS_ENABLED:-true}
+      EAV_API_TOKENS: ${EAV_API_TOKENS:-}
       EAV_CORS_ORIGINS: ${EAV_CORS_ORIGINS:-["http://localhost:3000","http://localhost:5173"]}
     ports:
       - "${BIND_ADDRESS:-127.0.0.1}:${BACKEND_PORT:-8000}:8000"

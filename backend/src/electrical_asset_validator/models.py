@@ -22,6 +22,9 @@ class ValidationRun(Base):
     __tablename__ = "validation_runs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_public_id)
+    # Scope key: the eav_session cookie value, or "token:<sha256>" when
+    # bearer-token auth is enabled (see auth.token_scope_key). The column
+    # name predates token auth and is kept to avoid a schema migration.
     session_token: Mapped[str] = mapped_column(String(128), index=True)
     filename: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(
@@ -68,6 +71,8 @@ class ComparisonRun(Base):
     __tablename__ = "comparison_runs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_public_id)
+    # Same scope key as ValidationRun.session_token: cookie value or
+    # hashed-token key, depending on whether EAV_API_TOKENS is set.
     session_token: Mapped[str] = mapped_column(String(128), index=True)
     before_filename: Mapped[str] = mapped_column(String(255))
     after_filename: Mapped[str] = mapped_column(String(255))

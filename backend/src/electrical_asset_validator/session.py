@@ -11,7 +11,10 @@ MAX_TOKEN_LENGTH = 128
 
 
 def _acceptable(token: str) -> bool:
-    return MIN_TOKEN_LENGTH <= len(token) <= MAX_TOKEN_LENGTH
+    # Minted tokens are URL-safe base64 and never contain a colon; rejecting
+    # colons here keeps client-supplied cookies out of the "token:<sha256>"
+    # namespace that auth.token_scope_key uses for bearer-token scoping.
+    return MIN_TOKEN_LENGTH <= len(token) <= MAX_TOKEN_LENGTH and ":" not in token
 
 
 def get_session_token(request: Request, response: Response) -> str:
