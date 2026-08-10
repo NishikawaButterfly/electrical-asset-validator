@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -12,6 +12,7 @@ from .api import router
 from .config import Settings, get_settings
 from .database import Base, build_engine, build_session_factory
 from .middleware import RequestBodyLimitMiddleware
+from .retention import enforce_retention
 from . import models as _models  # noqa: F401
 
 
@@ -52,7 +53,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    application.include_router(router, prefix=runtime_settings.api_prefix)
+    application.include_router(
+        router,
+        prefix=runtime_settings.api_prefix,
+        dependencies=[Depends(enforce_retention)],
+    )
     if runtime_settings.static_dir is not None:
         static_root = Path(runtime_settings.static_dir)
         if not static_root.is_dir():
