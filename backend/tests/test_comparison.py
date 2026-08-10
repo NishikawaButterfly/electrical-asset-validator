@@ -5,8 +5,6 @@ from io import BytesIO
 import pytest
 from openpyxl import Workbook
 
-from tests.conftest import csv_bytes
-
 from electrical_asset_validator.services import comparison as comparison_service
 from electrical_asset_validator.services.comparison import compare_datasets
 from electrical_asset_validator.services.ingest import (
@@ -14,6 +12,7 @@ from electrical_asset_validator.services.ingest import (
     DatasetError,
     parse_dataset,
 )
+from tests.conftest import csv_bytes
 
 
 def _row(tag: str, name: str, power: int) -> dict[str, object]:

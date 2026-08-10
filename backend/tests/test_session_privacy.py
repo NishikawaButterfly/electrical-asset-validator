@@ -7,9 +7,10 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
-from httpx import ASGITransport, AsyncClient
 import pytest
+from httpx import ASGITransport, AsyncClient
 
+from electrical_asset_validator import retention
 from electrical_asset_validator.config import Settings
 from electrical_asset_validator.main import create_app
 from electrical_asset_validator.models import utc_now
@@ -122,8 +123,6 @@ async def test_retention_sweep_deletes_expired_runs(
     clean_csv: bytes,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from electrical_asset_validator import retention
-
     async with _two_clients(tmp_path, demo_retention_minutes=30) as (alice, _):
         validation = await alice.post("/api/v1/validations", files=_files(clean_csv))
         comparison = await alice.post(
@@ -156,8 +155,6 @@ async def test_retention_disabled_by_default(
     clean_csv: bytes,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from electrical_asset_validator import retention
-
     async with _two_clients(tmp_path) as (alice, _):
         created = await alice.post("/api/v1/validations", files=_files(clean_csv))
         assert created.status_code == 201

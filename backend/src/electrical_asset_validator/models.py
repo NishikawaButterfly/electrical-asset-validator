@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import Boolean, JSON, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def new_public_id() -> str:
@@ -39,7 +39,7 @@ class ValidationRun(Base):
     records: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
     source_columns: Mapped[list[str]] = mapped_column(JSON, default=list)
 
-    issues: Mapped[list["ValidationIssue"]] = relationship(
+    issues: Mapped[list[ValidationIssue]] = relationship(
         back_populates="validation",
         cascade="all, delete-orphan",
         order_by="ValidationIssue.id",
@@ -82,7 +82,7 @@ class ComparisonRun(Base):
     removed: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
     changed: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
 
-    diffs: Mapped[list["ComparisonDiff"]] = relationship(
+    diffs: Mapped[list[ComparisonDiff]] = relationship(
         back_populates="comparison",
         cascade="all, delete-orphan",
         order_by="ComparisonDiff.id",

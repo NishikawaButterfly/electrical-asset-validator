@@ -1,19 +1,19 @@
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from . import models as _models  # noqa: F401
 from .api import router
 from .config import Settings, get_settings
 from .database import Base, build_engine, build_session_factory
 from .middleware import RequestBodyLimitMiddleware
 from .retention import enforce_retention
-from . import models as _models  # noqa: F401
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:

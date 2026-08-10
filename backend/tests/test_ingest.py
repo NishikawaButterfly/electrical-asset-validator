@@ -15,10 +15,10 @@ from electrical_asset_validator.services.ingest import (
 
 def test_csv_headers_are_safely_normalized() -> None:
     content = (
-        "Asset Tag,Asset Name,Asset Type,Location,Panel Tag,Circuit Ref,"
-        "Voltage V,Power KW,Status\n"
-        "PNL-A,Main Panel,panel,Plant 1,,,400,0,active\n"
-    ).encode()
+        b"Asset Tag,Asset Name,Asset Type,Location,Panel Tag,Circuit Ref,"
+        b"Voltage V,Power KW,Status\n"
+        b"PNL-A,Main Panel,panel,Plant 1,,,400,0,active\n"
+    )
 
     dataset = parse_dataset("assets.csv", content)
 

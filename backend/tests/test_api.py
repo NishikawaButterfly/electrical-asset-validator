@@ -3,15 +3,15 @@ from __future__ import annotations
 import json
 from io import BytesIO
 
+import pytest
 from httpx import AsyncClient
 from openpyxl import load_workbook
-import pytest
 
-from tests.conftest import csv_bytes
 from electrical_asset_validator.services.ingest import (
     CANONICAL_COLUMNS,
     MAX_CELL_CHARACTERS,
 )
+from tests.conftest import csv_bytes
 
 pytestmark = pytest.mark.anyio
 
@@ -161,11 +161,11 @@ async def test_validation_maps_nonstandard_headers_with_a_full_mapping(
     client: AsyncClient,
 ) -> None:
     content = (
-        "Equipment ID,Description,Category,Site,Feeder Panel,Feeder Circuit,"
-        "Volts,Kilowatts,State\n"
-        "PNL-A,Main Panel,panel,Plant 1,,,400,0,active\n"
-        "MTR-001,Conveyor Motor,motor,Plant 1,PNL-A,C-01,400,15,active\n"
-    ).encode()
+        b"Equipment ID,Description,Category,Site,Feeder Panel,Feeder Circuit,"
+        b"Volts,Kilowatts,State\n"
+        b"PNL-A,Main Panel,panel,Plant 1,,,400,0,active\n"
+        b"MTR-001,Conveyor Motor,motor,Plant 1,PNL-A,C-01,400,15,active\n"
+    )
     mapping = {
         "Equipment ID": "asset_tag",
         "Description": "asset_name",
@@ -434,10 +434,10 @@ async def test_inspection_reports_unmatched_renamed_headers(
     client: AsyncClient,
 ) -> None:
     content = (
-        "Equipment ID,Asset Name,asset_type,location,panel_tag,circuit_ref,"
-        "Volts,power_kw,status\n"
-        "PNL-A,Main Panel,panel,Plant 1,,,400,0,active\n"
-    ).encode()
+        b"Equipment ID,Asset Name,asset_type,location,panel_tag,circuit_ref,"
+        b"Volts,power_kw,status\n"
+        b"PNL-A,Main Panel,panel,Plant 1,,,400,0,active\n"
+    )
 
     response = await client.post(
         "/api/v1/inspections",

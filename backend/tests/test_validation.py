@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from tests.conftest import csv_bytes
-
 from electrical_asset_validator.services import validation as validation_service
 from electrical_asset_validator.services.ingest import CANONICAL_COLUMNS, parse_dataset
 from electrical_asset_validator.services.validation import (
     MAX_ASSET_TAG_CHARACTERS,
     validate_dataset,
 )
+from tests.conftest import csv_bytes
 
 
 def test_clean_register_scores_100(clean_rows: list[dict[str, object]]) -> None:
@@ -23,7 +22,8 @@ def test_clean_register_scores_100(clean_rows: list[dict[str, object]]) -> None:
 def test_core_data_quality_rules_are_reported(
     clean_rows: list[dict[str, object]],
 ) -> None:
-    rows = clean_rows + [
+    rows = [
+        *clean_rows,
         {
             "asset_tag": "mtr_001",
             "asset_name": "Backup Motor",
@@ -34,7 +34,7 @@ def test_core_data_quality_rules_are_reported(
             "voltage_v": -10,
             "power_kw": "large",
             "status": "activ",
-        }
+        },
     ]
     dataset = parse_dataset("bad.csv", csv_bytes(rows))
 
@@ -61,9 +61,9 @@ def test_core_data_quality_rules_are_reported(
 
 def test_missing_schema_and_reference_fields_are_distinguished() -> None:
     content = (
-        "asset_tag,asset_name,asset_type,location,voltage_v,power_kw,status\n"
-        "MTR-001,Motor,motor,Plant 1,400,10,active\n"
-    ).encode()
+        b"asset_tag,asset_name,asset_type,location,voltage_v,power_kw,status\n"
+        b"MTR-001,Motor,motor,Plant 1,400,10,active\n"
+    )
 
     outcome = validate_dataset(parse_dataset("missing.csv", content))
     rules_by_field = {(finding.rule, finding.field) for finding in outcome.findings}

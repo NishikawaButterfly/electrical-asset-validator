@@ -106,7 +106,7 @@ def _is_blank_row(row: list[Any] | tuple[Any, ...]) -> bool:
 
 
 def _check_cell_lengths(rows: list[list[Any]]) -> None:
-    for row_number, row in enumerate(rows, start=1):
+    for row in rows:
         for value in row:
             if isinstance(value, str) and len(value) > MAX_CELL_CHARACTERS:
                 raise DatasetError(

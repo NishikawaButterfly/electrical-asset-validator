@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 
@@ -85,8 +85,8 @@ def _column_mapping(mapping: str | None) -> dict[str, str] | None:
 
 def _utc_datetime(value: datetime) -> datetime:
     if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _safe_filename(filename: str | None, fallback: str) -> str:
@@ -347,7 +347,7 @@ def download_pdf_report(
     status_code=201,
     tags=["comparisons"],
 )
-def create_comparison(
+def create_comparison(  # noqa: PLR0913, PLR0917 -- every parameter is a FastAPI injection point
     request: Request,
     before_file: UploadFile = File(...),
     after_file: UploadFile = File(...),
