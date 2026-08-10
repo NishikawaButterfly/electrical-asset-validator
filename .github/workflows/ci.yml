@@ -39,6 +39,7 @@ jobs:
       - name: Verify proxied PostgreSQL write and read
         run: |
           curl --fail --show-error \
+            --cookie-jar /tmp/session-cookies.txt \
             --form "file=@sample-data/revision-a.csv;type=text/csv" \
             --output /tmp/validation.json \
             http://127.0.0.1:3000/api/v1/validations
@@ -46,9 +47,15 @@ jobs:
             python -c "import json; payload=json.load(open('/tmp/validation.json')); assert payload['quality_score'] == 100; print(payload['id'])"
           )"
           curl --fail --show-error \
+            --cookie /tmp/session-cookies.txt \
             --output /tmp/validation-detail.json \
             "http://127.0.0.1:3000/api/v1/validations/${validation_id}"
           python -c "import json; created=json.load(open('/tmp/validation.json')); detail=json.load(open('/tmp/validation-detail.json')); assert detail == created"
+          status="$(
+            curl --silent --output /dev/null --write-out '%{http_code}' \
+              "http://127.0.0.1:3000/api/v1/validations/${validation_id}"
+          )"
+          test "${status}" = "404"
 
       - name: Stop the stack
         if: always()

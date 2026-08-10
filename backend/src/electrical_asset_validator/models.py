@@ -24,6 +24,7 @@ class ValidationRun(Base):
     id: Mapped[str] = mapped_column(
         String(36), primary_key=True, default=new_public_id
     )
+    session_token: Mapped[str] = mapped_column(String(128), index=True)
     filename: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, index=True
@@ -71,6 +72,7 @@ class ComparisonRun(Base):
     id: Mapped[str] = mapped_column(
         String(36), primary_key=True, default=new_public_id
     )
+    session_token: Mapped[str] = mapped_column(String(128), index=True)
     before_filename: Mapped[str] = mapped_column(String(255))
     after_filename: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(

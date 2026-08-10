@@ -52,6 +52,8 @@ async function requestJson<T>(
 ): Promise<T> {
   const response = await fetch(`${API_ROOT}${path}`, {
     ...init,
+    // The session cookie scopes stored runs to this browser session.
+    credentials: "include",
     headers: {
       Accept: "application/json",
       ...init?.headers,
@@ -134,6 +136,7 @@ export const api = {
     format: ReportFormat,
   ): Promise<Blob> {
     const response = await fetch(this.reportUrl(validationId, format), {
+      credentials: "include",
       headers: {
         Accept:
           format === "pdf"
