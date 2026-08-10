@@ -84,13 +84,17 @@ data-quality failures.
 
 ### Database
 
-- run metadata and processed results
+- run metadata and processed results, keyed to an opaque per-session token
 - health-gated startup in Docker Compose
 - persistent named volume for local deployments
 
 Uploaded files and validation results can contain infrastructure information.
-Database backups, retention, access control, and encryption are deployment
-responsibilities.
+Stored runs are scoped to a random httponly session cookie, so one browser
+session cannot list or fetch another's runs or reports; this is isolation,
+not authentication. `EAV_DEMO_RETENTION_MINUTES` optionally deletes runs
+older than the window, swept lazily on the next API request - the public
+demo uses it. Database backups, longer-term retention policy, access
+control, and encryption remain deployment responsibilities.
 
 ## Key decisions
 

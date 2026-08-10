@@ -52,6 +52,7 @@ from .services.ingest import (
 )
 from .services.reports import build_excel_report, build_pdf_report
 from .services.validation import validate_dataset
+from .session import get_session_token
 
 router = APIRouter()
 
@@ -175,11 +176,18 @@ def _comparison_response(comparison: ComparisonRun) -> ComparisonResponse:
     )
 
 
-def _load_validation(session: Session, validation_id: str) -> ValidationRun:
+def _load_validation(
+    session: Session,
+    validation_id: str,
+    session_token: str,
+) -> ValidationRun:
     validation = session.scalar(
         select(ValidationRun)
         .options(selectinload(ValidationRun.issues))
-        .where(ValidationRun.id == validation_id)
+        .where(
+            ValidationRun.id == validation_id,
+            ValidationRun.session_token == session_token,
+        )
     )
     if validation is None:
         raise HTTPException(status_code=404, detail="Validation not found.")
@@ -211,6 +219,7 @@ def create_validation(
     file: UploadFile = File(...),
     mapping: str | None = Form(default=None),
     session: Session = Depends(get_session),
+    session_token: str = Depends(get_session_token),
 ) -> ValidationResponse:
     settings = _settings(request)
     content = _read_upload(file, settings)
@@ -224,6 +233,7 @@ def create_validation(
 
     outcome = validate_dataset(dataset)
     validation = ValidationRun(
+        session_token=session_token,
         filename=_safe_filename(file.filename, "upload"),
         quality_score=outcome.quality_score,
         total_rows=outcome.total_rows,
@@ -263,9 +273,11 @@ def list_validations(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     session: Session = Depends(get_session),
+    session_token: str = Depends(get_session_token),
 ) -> list[ValidationHistoryItem]:
     validations = session.scalars(
         select(ValidationRun)
+        .where(ValidationRun.session_token == session_token)
         .order_by(ValidationRun.created_at.desc(), ValidationRun.id.desc())
         .offset(offset)
         .limit(limit)
@@ -282,9 +294,10 @@ def get_validation(
     request: Request,
     validation_id: str,
     session: Session = Depends(get_session),
+    session_token: str = Depends(get_session_token),
 ) -> ValidationResponse:
     return _validation_response(
-        _load_validation(session, validation_id),
+        _load_validation(session, validation_id, session_token),
         _settings(request).api_prefix,
     )
 
@@ -297,8 +310,9 @@ def get_validation(
 def download_excel_report(
     validation_id: str,
     session: Session = Depends(get_session),
+    session_token: str = Depends(get_session_token),
 ) -> StreamingResponse:
-    validation = _load_validation(session, validation_id)
+    validation = _load_validation(session, validation_id, session_token)
     report = build_excel_report(validation)
     return StreamingResponse(
         BytesIO(report),
@@ -321,8 +335,9 @@ def download_excel_report(
 def download_pdf_report(
     validation_id: str,
     session: Session = Depends(get_session),
+    session_token: str = Depends(get_session_token),
 ) -> StreamingResponse:
-    validation = _load_validation(session, validation_id)
+    validation = _load_validation(session, validation_id, session_token)
     report = build_pdf_report(validation)
     return StreamingResponse(
         BytesIO(report),
@@ -347,6 +362,7 @@ def create_comparison(
     after_file: UploadFile = File(...),
     mapping: str | None = Form(default=None),
     session: Session = Depends(get_session),
+    session_token: str = Depends(get_session_token),
 ) -> ComparisonResponse:
     settings = _settings(request)
     before_content = _read_upload(before_file, settings)
@@ -366,6 +382,7 @@ def create_comparison(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     comparison = ComparisonRun(
+        session_token=session_token,
         before_filename=_safe_filename(before_file.filename, "before"),
         after_filename=_safe_filename(after_file.filename, "after"),
         added_count=len(outcome.added),
@@ -421,8 +438,14 @@ def create_comparison(
 def get_comparison(
     comparison_id: str,
     session: Session = Depends(get_session),
+    session_token: str = Depends(get_session_token),
 ) -> ComparisonResponse:
-    comparison = session.get(ComparisonRun, comparison_id)
+    comparison = session.scalar(
+        select(ComparisonRun).where(
+            ComparisonRun.id == comparison_id,
+            ComparisonRun.session_token == session_token,
+        )
+    )
     if comparison is None:
         raise HTTPException(status_code=404, detail="Comparison not found.")
     return _comparison_response(comparison)

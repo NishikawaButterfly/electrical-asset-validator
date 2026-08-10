@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1"
     database_url: str = "sqlite:///./electrical_asset_validator.db"
     max_upload_mb: int = Field(default=10, ge=1, le=100)
+    # Minutes to keep stored runs before they are swept; 0 keeps them
+    # forever. Meant for public demo deployments.
+    demo_retention_minutes: int = Field(default=0, ge=0)
     docs_enabled: bool = True
     static_dir: str | None = None
     cors_origins: list[str] = Field(

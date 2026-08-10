@@ -209,6 +209,12 @@ All application routes are versioned below `/api/v1`.
 `POST /validations` and `POST /comparisons` also accept an optional `mapping`
 form field: a JSON object of source headers to canonical fields.
 
+Stored runs are scoped to an opaque `eav_session` cookie the API mints on
+first use: listings only return the calling session's runs, and another
+session's run ids and report URLs answer 404. Keep a cookie jar
+(`curl --cookie-jar`) if you want to fetch a run again after creating it
+from the command line.
+
 Interactive request and response schemas are available from `/docs` when
 `EAV_DOCS_ENABLED=true`.
 
@@ -266,6 +272,14 @@ exported report it produces is committed next to it.
   third-party upload services.
 - In the self-hosted stack, uploaded register data is processed by the
   configured backend, and results may be stored in its database.
+- Stored runs are isolated per browser session with a random httponly
+  cookie: one session cannot list or fetch another session's validations,
+  comparisons, or reports. This is scoping, not authentication - anyone
+  holding the cookie value holds the session, and a database administrator
+  can read everything.
+- `EAV_DEMO_RETENTION_MINUTES` deletes stored runs after the configured
+  window; the public demo runs with 30 minutes. The default of `0` keeps
+  runs until the operator deletes them.
 - Asset registers can reveal operational infrastructure. Access control,
   retention, backups, encryption, and incident procedures are up to the
   operator.
@@ -305,8 +319,10 @@ browser bundle.
   rows per file, at most 10,000 validation finding details, and comparisons
   are rejected above 10,000 details. There are no asynchronous jobs, no
   pagination for result details, and no object storage.
-- No authentication, role model, approval workflow, or multi-tenant
-  isolation.
+- No authentication, role model, or approval workflow. Session-cookie
+  scoping keeps browser sessions apart but is not access control: losing
+  the cookie orphans a session's runs, and there is no way to share a run
+  with someone else.
 - Renamed asset tags are not inferred.
 - The baseline rules check data quality, not electrical-code compliance or
   engineering correctness.
