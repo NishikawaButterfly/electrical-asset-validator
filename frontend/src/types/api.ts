@@ -1,3 +1,7 @@
+export interface ApiConfig {
+  auth_required: boolean;
+}
+
 export type IssueSeverity = "error" | "warning" | "info";
 
 export interface ValidationIssue {

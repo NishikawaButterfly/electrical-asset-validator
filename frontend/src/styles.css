@@ -293,6 +293,37 @@ main {
   box-shadow: var(--shadow-sm);
 }
 
+.token-panel {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 17px 21px;
+}
+
+.token-panel p {
+  margin: 3px 0 0;
+  font-size: 0.85rem;
+}
+
+.token-panel form {
+  display: flex;
+  flex: 1 1 300px;
+  gap: 9px;
+  max-width: 460px;
+}
+
+.token-panel input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px;
+  font: inherit;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+
 .workspace {
   min-width: 0;
   padding: 31px;

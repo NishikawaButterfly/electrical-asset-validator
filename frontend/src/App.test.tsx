@@ -100,6 +100,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 describe("App", () => {
   beforeEach(() => {
+    window.localStorage.clear();
     vi.stubGlobal(
       "fetch",
       vi.fn(() => Promise.resolve(jsonResponse([]))),
@@ -334,6 +335,46 @@ describe("App", () => {
     const body = postCall?.[1]?.body as FormData;
     expect(body.get("file")).toBe(file);
     expect(body.get("mapping")).toBeNull();
+  });
+
+  it("hides the token prompt on open deployments", async () => {
+    render(<App />);
+
+    expect(await screen.findByText("No validations yet")).toBeInTheDocument();
+    expect(screen.queryByLabelText("API token")).not.toBeInTheDocument();
+  });
+
+  it("asks for a token when the backend requires auth and sends it as a bearer header", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith("/api/v1/config") && init?.method !== "POST") {
+        return Promise.resolve(jsonResponse({ auth_required: true }));
+      }
+      return Promise.resolve(jsonResponse([]));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<App />);
+
+    const tokenInput = await screen.findByLabelText("API token");
+    // Until a token is supplied, no history request goes out to fail.
+    expect(
+      fetchMock.mock.calls.some(([input]) =>
+        String(input).endsWith("/api/v1/validations"),
+      ),
+    ).toBe(false);
+
+    await user.type(tokenInput, "alpha-team-shared-token");
+    await user.click(screen.getByRole("button", { name: "Use token" }));
+
+    await waitFor(() => {
+      const listCall = fetchMock.mock.calls.find(([input]) =>
+        String(input).endsWith("/api/v1/validations"),
+      );
+      expect(listCall).toBeDefined();
+      expect(new Headers(listCall?.[1]?.headers).get("Authorization")).toBe(
+        "Bearer alpha-team-shared-token",
+      );
+    });
   });
 
   it("compares CSV and XLSX revisions with the expected multipart fields", async () => {

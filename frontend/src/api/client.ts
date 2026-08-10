@@ -1,4 +1,5 @@
 import type {
+  ApiConfig,
   ColumnMapping,
   ComparisonResult,
   InspectionResult,
@@ -9,6 +10,35 @@ import type {
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 const API_ROOT = `${API_BASE_URL}/api/v1`;
+const TOKEN_STORAGE_KEY = "eav_api_token";
+
+export function getStoredApiToken(): string {
+  try {
+    return window.localStorage.getItem(TOKEN_STORAGE_KEY) ?? "";
+  } catch {
+    // Storage can be unavailable (private browsing, blocked cookies).
+    return "";
+  }
+}
+
+export function setStoredApiToken(token: string): void {
+  try {
+    if (token) {
+      window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
+    } else {
+      window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+    }
+  } catch {
+    // Without storage the token simply does not survive a reload.
+  }
+}
+
+function authHeaders(): Record<string, string> {
+  // The backend ignores the header on open deployments, so it is safe to
+  // send whenever a token is stored.
+  const token = getStoredApiToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 export class ApiError extends Error {
   readonly status: number;
@@ -56,6 +86,7 @@ async function requestJson<T>(
     credentials: "include",
     headers: {
       Accept: "application/json",
+      ...authHeaders(),
       ...init?.headers,
     },
   });
@@ -68,6 +99,10 @@ async function requestJson<T>(
 }
 
 export const api = {
+  getConfig(signal?: AbortSignal): Promise<ApiConfig> {
+    return requestJson<ApiConfig>("/config", { signal });
+  },
+
   listValidations(signal?: AbortSignal): Promise<ValidationSummary[]> {
     return requestJson<ValidationSummary[]>("/validations", { signal });
   },
@@ -142,6 +177,7 @@ export const api = {
           format === "pdf"
             ? "application/pdf"
             : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ...authHeaders(),
       },
     });
 
