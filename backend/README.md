@@ -26,6 +26,7 @@ Settings use the `EAV_` prefix:
 | `EAV_DATABASE_URL` | `sqlite:///./electrical_asset_validator.db` | SQLAlchemy database URL |
 | `EAV_MAX_UPLOAD_MB` | `10` | Maximum size of each uploaded file |
 | `EAV_DEMO_RETENTION_MINUTES` | `0` | Delete stored runs older than this many minutes; `0` keeps them |
+| `EAV_API_TOKENS` | empty | Comma-separated shared bearer tokens; empty leaves the API open with session-cookie scoping |
 | `EAV_DOCS_ENABLED` | `true` | Enable OpenAPI browser pages |
 | `EAV_CORS_ORIGINS` | localhost origins | JSON array of allowed web origins |
 
@@ -59,6 +60,7 @@ requests and unrecognized multipart fields.
 ## Main routes
 
 - `GET /api/v1/health`
+- `GET /api/v1/config`
 - `POST /api/v1/validations` with multipart field `file`
 - `GET /api/v1/validations`
 - `GET /api/v1/validations/{id}`
@@ -68,10 +70,43 @@ requests and unrecognized multipart fields.
   `after_file`
 - `GET /api/v1/comparisons/{id}`
 
+## Optional token authentication
+
+`EAV_API_TOKENS` accepts one or more comma-separated tokens
+(`alpha-token,beta-token`); empty entries are rejected at startup with a
+clear error. When any tokens are configured:
+
+- Every data route (validations, comparisons, reports, inspections)
+  requires `Authorization: Bearer <token>` and answers 401 with a
+  `WWW-Authenticate: Bearer` challenge otherwise. `GET /health` and
+  `GET /config` stay open: orchestrator health checks and the frontend's
+  auth discovery must work before credentials exist, and neither route
+  exposes stored data.
+- The token replaces the session cookie as the scope key for stored runs.
+  Runs created with one token answer 404 to every other token, exactly as
+  session scoping treats a foreign session. The cookie is neither read nor
+  set in this mode, so API clients need no cookie jar.
+- Runs store a SHA-256 of the token (`token:<hex>` in the existing
+  `session_token` column), never the raw token, so a database dump cannot
+  leak working credentials. Consequence: rotating a token orphans the runs
+  created with it.
+- Token comparison uses `secrets.compare_digest` against every configured
+  token so response timing does not leak partial matches.
+- `GET /config` reports `{"auth_required": true}` so the web UI knows to
+  ask for a token.
+
+Tokens are shared secrets, not user accounts: there is no per-user
+identity, role model, or audit trail, and everyone holding a token shares
+one pool of runs. Transport security is the deployer's job - terminate TLS
+in front of the API before sending real tokens over a network. With
+`EAV_API_TOKENS` unset, behavior is exactly the pre-token, session-scoped
+behavior described below.
+
 ## Session scoping
 
-Stored runs are keyed to an opaque `eav_session` cookie (httponly,
-random, minted on first use). Listings return only the calling session's
+With `EAV_API_TOKENS` unset (the default), stored runs are keyed to an
+opaque `eav_session` cookie (httponly, random, minted on first use).
+Listings return only the calling session's
 runs, and fetching another session's run or report returns 404. This is
 isolation between browser sessions, not authentication: anyone who has
 the cookie value has the session. API clients that want to read a run

@@ -197,6 +197,7 @@ All application routes are versioned below `/api/v1`.
 | Method | Route | Purpose |
 | --- | --- | --- |
 | `GET` | `/health` | Liveness and dependency status |
+| `GET` | `/config` | Whether the deployment requires a bearer token |
 | `POST` | `/validations` | Upload and validate one CSV or XLSX file (`file`) |
 | `GET` | `/validations` | List validation runs |
 | `GET` | `/validations/{id}` | Retrieve one validation result |
@@ -214,6 +215,13 @@ first use: listings only return the calling session's runs, and another
 session's run ids and report URLs answer 404. Keep a cookie jar
 (`curl --cookie-jar`) if you want to fetch a run again after creating it
 from the command line.
+
+When `EAV_API_TOKENS` is set, the token replaces the cookie as that scope
+key: every data route requires `Authorization: Bearer <token>` (requests
+without a valid token get 401), runs are isolated per token with the same
+404 discipline, and no cookie jar is needed. `/health` and `/config` stay
+open so health checks and token discovery work without credentials. See
+[Optional token authentication](#optional-token-authentication).
 
 Interactive request and response schemas are available from `/docs` when
 `EAV_DOCS_ENABLED=true`.
@@ -266,6 +274,44 @@ exported report it produces is committed next to it.
 └── docker-compose.yml       Frontend, backend, and PostgreSQL stack
 ```
 
+## Optional token authentication
+
+Setting `EAV_API_TOKENS` to one or more comma-separated tokens switches the
+API from open to authenticated: every data route then requires
+`Authorization: Bearer <token>`, and stored runs are keyed to the token that
+created them, so one team's validations, comparisons, and reports are
+invisible to every other token (missing runs and foreign runs both answer
+404). Only a SHA-256 of each token is stored with a run, never the token
+itself. Leaving the variable empty keeps today's open, session-scoped
+behavior, so the local workflow loses nothing.
+
+Be honest about what this is:
+
+- Tokens are shared secrets, not user accounts. Everyone holding a token
+  shares one pool of runs; there are no names, roles, or audit trails, and
+  rotating a token orphans the runs created with it.
+- TLS termination is the deployer's responsibility. A bearer token on plain
+  HTTP is readable in transit; put the stack behind an HTTPS-terminating
+  gateway before sending real tokens over a network.
+
+With Docker Compose, set the tokens in `.env` (see `.env.example`):
+
+```bash
+EAV_API_TOKENS=alpha-team-token,beta-team-token
+```
+
+On Fly.io, keep tokens out of `fly.toml` and use a secret:
+
+```bash
+fly secrets set EAV_API_TOKENS=alpha-team-token,beta-team-token
+```
+
+The public demo deliberately runs without tokens: it is meant to be opened
+by anyone, and the 30-minute retention window plus per-browser-session
+scoping already protect it. The web UI asks for the token only when the
+backend reports that authentication is enabled, and keeps it in browser
+localStorage.
+
 ## Privacy and security
 
 - This repository does not intentionally add telemetry, analytics, or
@@ -277,15 +323,20 @@ exported report it produces is committed next to it.
   comparisons, or reports. This is scoping, not authentication - anyone
   holding the cookie value holds the session, and a database administrator
   can read everything.
+- `EAV_API_TOKENS` optionally requires a shared bearer token on every data
+  route and isolates stored runs per token. Tokens are hashed at rest, but
+  uploaded register data is not; a database administrator can still read
+  results, just not the tokens.
 - `EAV_DEMO_RETENTION_MINUTES` deletes stored runs after the configured
   window; the public demo runs with 30 minutes. The default of `0` keeps
   runs until the operator deletes them.
 - Asset registers can reveal operational infrastructure. Access control,
   retention, backups, encryption, and incident procedures are up to the
   operator.
-- The local stack has no TLS, authentication, or authorization. Put it behind
-  a trusted gateway before exposing it to a network. Compose binds published
-  ports to loopback by default.
+- The local stack has no TLS, and authentication is off unless
+  `EAV_API_TOKENS` is set. Put it behind a trusted HTTPS gateway before
+  exposing it to a network; bearer tokens on plain HTTP are readable in
+  transit. Compose binds published ports to loopback by default.
 - Do not use the fictional sample data as an engineering design basis.
 
 ## Decisions
@@ -319,10 +370,11 @@ browser bundle.
   rows per file, at most 10,000 validation finding details, and comparisons
   are rejected above 10,000 details. There are no asynchronous jobs, no
   pagination for result details, and no object storage.
-- No authentication, role model, or approval workflow. Session-cookie
-  scoping keeps browser sessions apart but is not access control: losing
-  the cookie orphans a session's runs, and there is no way to share a run
-  with someone else.
+- No user accounts, role model, or approval workflow. The optional
+  `EAV_API_TOKENS` bearer tokens are shared secrets: everyone with a token
+  shares one pool of runs, rotating a token orphans its runs, and there is
+  no way to share a single run across tokens or sessions. With auth off,
+  losing the session cookie orphans that session's runs the same way.
 - Renamed asset tags are not inferred.
 - The baseline rules check data quality, not electrical-code compliance or
   engineering correctness.
@@ -331,7 +383,8 @@ browser bundle.
 
 ## Roadmap
 
-Things I'd like to add eventually: authentication and roles, and saved
+Things I'd like to add eventually: real user accounts and roles on top of
+the shared-token authentication, and saved
 column mappings so a recurring format only has to be mapped once.
 Asynchronous processing for registers too big for the current limits would
 come after that. No promises on timing.
