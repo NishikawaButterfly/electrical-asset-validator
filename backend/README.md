@@ -25,6 +25,7 @@ Settings use the `EAV_` prefix:
 | --- | --- | --- |
 | `EAV_DATABASE_URL` | `sqlite:///./electrical_asset_validator.db` | SQLAlchemy database URL |
 | `EAV_MAX_UPLOAD_MB` | `10` | Maximum size of each uploaded file |
+| `EAV_DEMO_RETENTION_MINUTES` | `0` | Delete stored runs older than this many minutes; `0` keeps them |
 | `EAV_DOCS_ENABLED` | `true` | Enable OpenAPI browser pages |
 | `EAV_CORS_ORIGINS` | localhost origins | JSON array of allowed web origins |
 
@@ -66,3 +67,23 @@ requests and unrecognized multipart fields.
 - `POST /api/v1/comparisons` with multipart fields `before_file` and
   `after_file`
 - `GET /api/v1/comparisons/{id}`
+
+## Session scoping
+
+Stored runs are keyed to an opaque `eav_session` cookie (httponly,
+random, minted on first use). Listings return only the calling session's
+runs, and fetching another session's run or report returns 404. This is
+isolation between browser sessions, not authentication: anyone who has
+the cookie value has the session. API clients that want to read a run
+back later must keep a cookie jar, for example
+`curl --cookie-jar cookies.txt` on the create and
+`curl --cookie cookies.txt` on the fetch. Upgrading an existing
+deployment needs the `session_token` column added to `validation_runs`
+and `comparison_runs`, or a recreated database; there is no migration
+tooling in this repository.
+
+When `EAV_DEMO_RETENTION_MINUTES` is set above zero, runs older than the
+window are deleted together with their findings and diffs. The sweep is
+lazy: it happens at the start of the next API request rather than on a
+scheduler, so an idle instance deletes expired data as soon as anything
+(including a health check) touches the API again.
