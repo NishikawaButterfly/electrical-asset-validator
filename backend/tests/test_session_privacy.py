@@ -7,9 +7,10 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
-from httpx import ASGITransport, AsyncClient
 import pytest
+from httpx import ASGITransport, AsyncClient
 
+from electrical_asset_validator import retention
 from electrical_asset_validator.config import Settings
 from electrical_asset_validator.main import create_app
 from electrical_asset_validator.models import utc_now
@@ -43,9 +44,7 @@ async def _two_clients(
             yield first, second
 
 
-async def test_listing_is_scoped_to_the_creating_session(
-    tmp_path: Path, clean_csv: bytes
-) -> None:
+async def test_listing_is_scoped_to_the_creating_session(tmp_path: Path, clean_csv: bytes) -> None:
     async with _two_clients(tmp_path) as (alice, bob):
         created = await alice.post("/api/v1/validations", files=_files(clean_csv))
         assert created.status_code == 201
@@ -60,9 +59,7 @@ async def test_listing_is_scoped_to_the_creating_session(
         assert other_history.json() == []
 
 
-async def test_foreign_validation_and_reports_return_404(
-    tmp_path: Path, clean_csv: bytes
-) -> None:
+async def test_foreign_validation_and_reports_return_404(tmp_path: Path, clean_csv: bytes) -> None:
     async with _two_clients(tmp_path) as (alice, bob):
         created = await alice.post("/api/v1/validations", files=_files(clean_csv))
         assert created.status_code == 201
@@ -80,9 +77,7 @@ async def test_foreign_validation_and_reports_return_404(
             assert foreign.status_code == 404
 
 
-async def test_foreign_comparison_returns_404(
-    tmp_path: Path, clean_csv: bytes
-) -> None:
+async def test_foreign_comparison_returns_404(tmp_path: Path, clean_csv: bytes) -> None:
     async with _two_clients(tmp_path) as (alice, bob):
         created = await alice.post(
             "/api/v1/comparisons",
@@ -110,9 +105,7 @@ async def test_session_cookie_is_httponly(tmp_path: Path, clean_csv: bytes) -> N
         assert "samesite=lax" in set_cookie
 
 
-async def test_validation_ids_are_not_sequential(
-    tmp_path: Path, clean_csv: bytes
-) -> None:
+async def test_validation_ids_are_not_sequential(tmp_path: Path, clean_csv: bytes) -> None:
     async with _two_clients(tmp_path) as (alice, _):
         first = await alice.post("/api/v1/validations", files=_files(clean_csv))
         second = await alice.post("/api/v1/validations", files=_files(clean_csv))
@@ -130,8 +123,6 @@ async def test_retention_sweep_deletes_expired_runs(
     clean_csv: bytes,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from electrical_asset_validator import retention
-
     async with _two_clients(tmp_path, demo_retention_minutes=30) as (alice, _):
         validation = await alice.post("/api/v1/validations", files=_files(clean_csv))
         comparison = await alice.post(
@@ -147,9 +138,7 @@ async def test_retention_sweep_deletes_expired_runs(
         comparison_id = comparison.json()["id"]
 
         # Still inside the retention window.
-        assert (
-            await alice.get(f"/api/v1/validations/{validation_id}")
-        ).status_code == 200
+        assert (await alice.get(f"/api/v1/validations/{validation_id}")).status_code == 200
 
         future = utc_now() + timedelta(minutes=31)
         monkeypatch.setattr(retention, "utc_now", lambda: future)
@@ -157,12 +146,8 @@ async def test_retention_sweep_deletes_expired_runs(
         history = await alice.get("/api/v1/validations")
         assert history.status_code == 200
         assert history.json() == []
-        assert (
-            await alice.get(f"/api/v1/validations/{validation_id}")
-        ).status_code == 404
-        assert (
-            await alice.get(f"/api/v1/comparisons/{comparison_id}")
-        ).status_code == 404
+        assert (await alice.get(f"/api/v1/validations/{validation_id}")).status_code == 404
+        assert (await alice.get(f"/api/v1/comparisons/{comparison_id}")).status_code == 404
 
 
 async def test_retention_disabled_by_default(
@@ -170,8 +155,6 @@ async def test_retention_disabled_by_default(
     clean_csv: bytes,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from electrical_asset_validator import retention
-
     async with _two_clients(tmp_path) as (alice, _):
         created = await alice.post("/api/v1/validations", files=_files(clean_csv))
         assert created.status_code == 201

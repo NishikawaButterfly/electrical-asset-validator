@@ -26,15 +26,15 @@ def sweep_expired(
         return 0
     cutoff = (now or utc_now()) - timedelta(minutes=retention_minutes)
     removed = 0
-    for expired in session.scalars(
+    for expired_validation in session.scalars(
         select(ValidationRun).where(ValidationRun.created_at < cutoff)
     ):
-        session.delete(expired)
+        session.delete(expired_validation)
         removed += 1
-    for expired in session.scalars(
+    for expired_comparison in session.scalars(
         select(ComparisonRun).where(ComparisonRun.created_at < cutoff)
     ):
-        session.delete(expired)
+        session.delete(expired_comparison)
         removed += 1
     if removed:
         session.commit()

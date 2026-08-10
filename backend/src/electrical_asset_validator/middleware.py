@@ -5,9 +5,7 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 MULTIPART_OVERHEAD_BYTES = 1024 * 1024
-REQUEST_TOO_LARGE_DETAIL = (
-    "The multipart request body is too large for this upload route."
-)
+REQUEST_TOO_LARGE_DETAIL = "The multipart request body is too large for this upload route."
 
 
 class RequestBodyTooLarge(OSError, HTTPException):

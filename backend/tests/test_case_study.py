@@ -8,6 +8,7 @@ import pytest
 
 from electrical_asset_validator.services.comparison import compare_datasets
 from electrical_asset_validator.services.ingest import (
+    Dataset,
     DatasetError,
     parse_column_mapping,
     parse_dataset,
@@ -28,7 +29,7 @@ CASE_STUDY_MAPPING = json.dumps(
 )
 
 
-def _case_study(name: str):
+def _case_study(name: str) -> Dataset:
     path = CASE_STUDY_DATA / name
     mapping = parse_column_mapping(CASE_STUDY_MAPPING)
     return parse_dataset(path.name, path.read_bytes(), mapping)
@@ -49,8 +50,7 @@ def test_case_study_walkthrough_remains_reproducible() -> None:
     assert received_validation.warning_count == 4
     assert received_validation.info_count == 0
     assert Counter(
-        (finding.severity, finding.rule)
-        for finding in received_validation.findings
+        (finding.severity, finding.rule) for finding in received_validation.findings
     ) == Counter(
         {
             ("error", "DUPLICATE_ASSET_TAG"): 2,

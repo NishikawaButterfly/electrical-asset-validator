@@ -44,8 +44,7 @@ class Settings(BaseSettings):
             or "//" in value
         ):
             raise ValueError(
-                "api_prefix must be a non-root path such as '/api/v1' "
-                "without a trailing slash"
+                "api_prefix must be a non-root path such as '/api/v1' without a trailing slash"
             )
         return value
 

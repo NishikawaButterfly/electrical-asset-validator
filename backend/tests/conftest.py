@@ -6,8 +6,8 @@ from io import StringIO
 from pathlib import Path
 from typing import Any
 
-from httpx import ASGITransport, AsyncClient
 import pytest
+from httpx import ASGITransport, AsyncClient
 
 from electrical_asset_validator.config import Settings
 from electrical_asset_validator.main import create_app

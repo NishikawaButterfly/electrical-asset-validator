@@ -15,10 +15,10 @@ from electrical_asset_validator.services.ingest import (
 
 def test_csv_headers_are_safely_normalized() -> None:
     content = (
-        "Asset Tag,Asset Name,Asset Type,Location,Panel Tag,Circuit Ref,"
-        "Voltage V,Power KW,Status\n"
-        "PNL-A,Main Panel,panel,Plant 1,,,400,0,active\n"
-    ).encode()
+        b"Asset Tag,Asset Name,Asset Type,Location,Panel Tag,Circuit Ref,"
+        b"Voltage V,Power KW,Status\n"
+        b"PNL-A,Main Panel,panel,Plant 1,,,400,0,active\n"
+    )
 
     dataset = parse_dataset("assets.csv", content)
 
@@ -32,10 +32,9 @@ def test_csv_headers_are_safely_normalized() -> None:
 def test_xlsx_first_worksheet_is_supported() -> None:
     workbook = Workbook()
     sheet = workbook.active
+    assert sheet is not None
     sheet.append(CANONICAL_COLUMNS)
-    sheet.append(
-        ["PNL-A", "Main Panel", "panel", "Plant 1", None, None, 400, 0, "active"]
-    )
+    sheet.append(["PNL-A", "Main Panel", "panel", "Plant 1", None, None, 400, 0, "active"])
     output = BytesIO()
     workbook.save(output)
 
@@ -61,11 +60,7 @@ def test_blank_csv_lines_do_not_shift_source_row_numbers() -> None:
 
 
 def test_literal_na_text_is_not_coerced_to_missing() -> None:
-    content = (
-        ",".join(CANONICAL_COLUMNS)
-        + "\n"
-        + "PNL-A,NA,panel,N/A,,,400,0,active\n"
-    ).encode()
+    content = (",".join(CANONICAL_COLUMNS) + "\n" + "PNL-A,NA,panel,N/A,,,400,0,active\n").encode()
 
     dataset = parse_dataset("assets.csv", content)
 
@@ -76,6 +71,7 @@ def test_literal_na_text_is_not_coerced_to_missing() -> None:
 def test_exact_duplicate_xlsx_headers_are_rejected() -> None:
     workbook = Workbook()
     sheet = workbook.active
+    assert sheet is not None
     sheet.append(["asset_tag", "asset_tag"])
     sheet.append(["PNL-A", "PNL-B"])
     output = BytesIO()
@@ -106,11 +102,10 @@ def test_xlsx_row_limit_counts_non_empty_rows(
     monkeypatch.setattr(ingest, "MAX_ROWS", 1)
     workbook = Workbook()
     sheet = workbook.active
+    assert sheet is not None
     sheet.append(CANONICAL_COLUMNS)
     sheet.append([None] * len(CANONICAL_COLUMNS))
-    sheet.append(
-        ["PNL-A", "Main Panel", "panel", "Plant 1", None, None, 400, 0, "active"]
-    )
+    sheet.append(["PNL-A", "Main Panel", "panel", "Plant 1", None, None, 400, 0, "active"])
     output = BytesIO()
     workbook.save(output)
 
@@ -138,8 +133,6 @@ def test_xlsx_row_limit_counts_non_empty_rows(
         ),
     ],
 )
-def test_malformed_datasets_are_rejected(
-    filename: str, content: bytes, message: str
-) -> None:
+def test_malformed_datasets_are_rejected(filename: str, content: bytes, message: str) -> None:
     with pytest.raises(DatasetError, match=message):
         parse_dataset(filename, content)

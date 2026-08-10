@@ -106,7 +106,7 @@ def _is_blank_row(row: list[Any] | tuple[Any, ...]) -> bool:
 
 
 def _check_cell_lengths(rows: list[list[Any]]) -> None:
-    for row_number, row in enumerate(rows, start=1):
+    for row in rows:
         for value in row:
             if isinstance(value, str) and len(value) > MAX_CELL_CHARACTERS:
                 raise DatasetError(
@@ -139,15 +139,12 @@ def _read_csv(content: bytes) -> tuple[list[Any], list[list[Any]], list[int]]:
                 continue
             if len(row) != len(header):
                 raise DatasetError(
-                    f"CSV row {source_row} has {len(row)} fields; "
-                    f"the header has {len(header)}."
+                    f"CSV row {source_row} has {len(row)} fields; the header has {len(header)}."
                 )
             rows.append(row)
             row_numbers.append(source_row)
             if len(rows) > MAX_ROWS:
-                raise DatasetError(
-                    f"Files may contain no more than {MAX_ROWS:,} data rows."
-                )
+                raise DatasetError(f"Files may contain no more than {MAX_ROWS:,} data rows.")
     except StopIteration:
         pass
     except csv.Error as exc:
@@ -164,9 +161,7 @@ def _preflight_xlsx(content: bytes) -> None:
         raise DatasetError("The XLSX file is not a valid workbook archive.") from exc
 
     if len(entries) > MAX_XLSX_ENTRIES:
-        raise DatasetError(
-            f"XLSX workbooks may contain no more than {MAX_XLSX_ENTRIES:,} files."
-        )
+        raise DatasetError(f"XLSX workbooks may contain no more than {MAX_XLSX_ENTRIES:,} files.")
     uncompressed_bytes = sum(entry.file_size for entry in entries)
     compressed_bytes = max(1, sum(entry.compress_size for entry in entries))
     if uncompressed_bytes > MAX_XLSX_UNCOMPRESSED_BYTES:
@@ -198,9 +193,7 @@ def _read_xlsx(content: bytes) -> tuple[list[Any], list[list[Any]], list[int]]:
             raise DatasetError("The XLSX workbook does not contain a worksheet.")
         sheet = workbook.worksheets[0]
         if sheet.max_column > MAX_COLUMNS:
-            raise DatasetError(
-                f"Files may contain no more than {MAX_COLUMNS} columns."
-            )
+            raise DatasetError(f"Files may contain no more than {MAX_COLUMNS} columns.")
         if sheet.max_row > MAX_SCANNED_XLSX_ROWS:
             raise DatasetError(
                 "The first XLSX worksheet extends beyond the supported "
@@ -211,9 +204,7 @@ def _read_xlsx(content: bytes) -> tuple[list[Any], list[list[Any]], list[int]]:
         try:
             header_values = list(next(iterator))
         except StopIteration as exc:
-            raise DatasetError(
-                "The uploaded file does not contain a header row."
-            ) from exc
+            raise DatasetError("The uploaded file does not contain a header row.") from exc
 
         while header_values and clean_scalar(header_values[-1]) is None:
             header_values.pop()
@@ -235,9 +226,7 @@ def _read_xlsx(content: bytes) -> tuple[list[Any], list[list[Any]], list[int]]:
             rows.append(row)
             row_numbers.append(source_row)
             if len(rows) > MAX_ROWS:
-                raise DatasetError(
-                    f"Files may contain no more than {MAX_ROWS:,} data rows."
-                )
+                raise DatasetError(f"Files may contain no more than {MAX_ROWS:,} data rows.")
     finally:
         workbook.close()
 
@@ -263,11 +252,7 @@ def _build_dataset(
     if any(not column for column in normalized_columns):
         raise DatasetError("Column names cannot be blank.")
     duplicates = sorted(
-        {
-            column
-            for column in normalized_columns
-            if normalized_columns.count(column) > 1
-        }
+        {column for column in normalized_columns if normalized_columns.count(column) > 1}
     )
     if duplicates:
         joined = ", ".join(duplicates)
@@ -277,24 +262,14 @@ def _build_dataset(
         missing_sources = sorted(set(mapping) - set(normalized_columns))
         if missing_sources:
             joined = ", ".join(missing_sources)
-            raise MappingError(
-                f"Mapped source headers are not present in the file: {joined}."
-            )
-        normalized_columns = [
-            mapping.get(column, column) for column in normalized_columns
-        ]
+            raise MappingError(f"Mapped source headers are not present in the file: {joined}.")
+        normalized_columns = [mapping.get(column, column) for column in normalized_columns]
         mapped_duplicates = sorted(
-            {
-                column
-                for column in normalized_columns
-                if normalized_columns.count(column) > 1
-            }
+            {column for column in normalized_columns if normalized_columns.count(column) > 1}
         )
         if mapped_duplicates:
             joined = ", ".join(mapped_duplicates)
-            raise MappingError(
-                f"Applying the mapping produces duplicate columns: {joined}."
-            )
+            raise MappingError(f"Applying the mapping produces duplicate columns: {joined}.")
 
     frame = pd.DataFrame(rows, columns=normalized_columns, dtype=object)
     present_columns = set(normalized_columns) & set(CANONICAL_COLUMNS)
@@ -328,15 +303,13 @@ def parse_column_mapping(raw: str) -> dict[str, str]:
         parsed = json.loads(raw)
     except json.JSONDecodeError as exc:
         raise MappingError(
-            "The column mapping must be a valid JSON object of source "
-            "headers to canonical fields."
+            "The column mapping must be a valid JSON object of source headers to canonical fields."
         ) from exc
     if not isinstance(parsed, dict) or not all(
         isinstance(target, str) for target in parsed.values()
     ):
         raise MappingError(
-            "The column mapping must be a JSON object of source headers "
-            "to canonical fields."
+            "The column mapping must be a JSON object of source headers to canonical fields."
         )
 
     mapping: dict[str, str] = {}
@@ -351,20 +324,15 @@ def parse_column_mapping(raw: str) -> dict[str, str]:
             )
         if normalized_source in mapping:
             raise MappingError(
-                "Duplicate mapped source headers after normalization: "
-                f"{normalized_source}."
+                f"Duplicate mapped source headers after normalization: {normalized_source}."
             )
         mapping[normalized_source] = target
 
     targets = list(mapping.values())
-    duplicate_targets = sorted(
-        {target for target in targets if targets.count(target) > 1}
-    )
+    duplicate_targets = sorted({target for target in targets if targets.count(target) > 1})
     if duplicate_targets:
         joined = ", ".join(duplicate_targets)
-        raise MappingError(
-            f"Multiple source headers map to the same canonical field: {joined}."
-        )
+        raise MappingError(f"Multiple source headers map to the same canonical field: {joined}.")
     return mapping
 
 

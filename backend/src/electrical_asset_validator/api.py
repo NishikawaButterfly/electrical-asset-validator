@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
+from typing import cast
 
 from fastapi import (
     APIRouter,
@@ -37,6 +38,7 @@ from .schemas import (
     InspectedColumn,
     InspectionResponse,
     IssueResponse,
+    Severity,
     ValidationHistoryItem,
     ValidationMetrics,
     ValidationResponse,
@@ -58,7 +60,9 @@ router = APIRouter()
 
 
 def _settings(request: Request) -> Settings:
-    return request.app.state.settings
+    # Starlette application state is untyped; create_app always stores Settings.
+    settings: Settings = request.app.state.settings
+    return settings
 
 
 def _read_upload(upload: UploadFile, settings: Settings) -> bytes:
@@ -85,8 +89,8 @@ def _column_mapping(mapping: str | None) -> dict[str, str] | None:
 
 def _utc_datetime(value: datetime) -> datetime:
     if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _safe_filename(filename: str | None, fallback: str) -> str:
@@ -122,7 +126,9 @@ def _validation_response(
         issues=[
             IssueResponse(
                 id=str(issue.id),
-                severity=issue.severity,  # type: ignore[arg-type]
+                # The column stores a plain string; only the rule engine's
+                # Severity literals are ever written to it.
+                severity=cast(Severity, issue.severity),
                 rule=issue.rule,
                 row=issue.row_number,
                 asset_tag=issue.asset_tag,
@@ -166,10 +172,7 @@ def _comparison_response(comparison: ComparisonRun) -> ComparisonResponse:
         changed=[
             ChangedAsset(
                 asset_tag=item["asset_tag"],
-                changes=[
-                    FieldChange.model_validate(change)
-                    for change in item.get("changes", [])
-                ],
+                changes=[FieldChange.model_validate(change) for change in item.get("changes", [])],
             )
             for item in comparison.changed
         ],
@@ -316,13 +319,9 @@ def download_excel_report(
     report = build_excel_report(validation)
     return StreamingResponse(
         BytesIO(report),
-        media_type=(
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        ),
+        media_type=("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
         headers={
-            "Content-Disposition": (
-                f'attachment; filename="validation-{validation.id}.xlsx"'
-            )
+            "Content-Disposition": (f'attachment; filename="validation-{validation.id}.xlsx"')
         },
     )
 
@@ -343,9 +342,7 @@ def download_pdf_report(
         BytesIO(report),
         media_type="application/pdf",
         headers={
-            "Content-Disposition": (
-                f'attachment; filename="validation-{validation.id}.pdf"'
-            )
+            "Content-Disposition": (f'attachment; filename="validation-{validation.id}.pdf"')
         },
     )
 
@@ -356,7 +353,7 @@ def download_pdf_report(
     status_code=201,
     tags=["comparisons"],
 )
-def create_comparison(
+def create_comparison(  # noqa: PLR0913, PLR0917 -- every parameter is a FastAPI injection point
     request: Request,
     before_file: UploadFile = File(...),
     after_file: UploadFile = File(...),
@@ -369,12 +366,8 @@ def create_comparison(
     after_content = _read_upload(after_file, settings)
     column_mapping = _column_mapping(mapping)
     try:
-        before_dataset = parse_dataset(
-            before_file.filename or "", before_content, column_mapping
-        )
-        after_dataset = parse_dataset(
-            after_file.filename or "", after_content, column_mapping
-        )
+        before_dataset = parse_dataset(before_file.filename or "", before_content, column_mapping)
+        after_dataset = parse_dataset(after_file.filename or "", after_content, column_mapping)
         outcome = compare_datasets(before_dataset, after_dataset)
     except MappingError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -473,16 +466,10 @@ def create_inspection(
         columns.append(
             InspectedColumn(
                 header=header,
-                canonical_field=(
-                    normalized if normalized in CANONICAL_COLUMNS else None
-                ),
+                canonical_field=(normalized if normalized in CANONICAL_COLUMNS else None),
             )
         )
-    unmatched = [
-        field
-        for field in CANONICAL_COLUMNS
-        if field not in dataset.present_columns
-    ]
+    unmatched = [field for field in CANONICAL_COLUMNS if field not in dataset.present_columns]
     return InspectionResponse(
         filename=_safe_filename(file.filename, "upload"),
         columns=columns,
