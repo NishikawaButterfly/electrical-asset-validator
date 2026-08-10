@@ -14,6 +14,10 @@ class HealthResponse(BaseModel):
     database: Literal["ok"]
 
 
+class ConfigResponse(BaseModel):
+    auth_required: bool
+
+
 class IssueResponse(BaseModel):
     id: str
     severity: Severity
