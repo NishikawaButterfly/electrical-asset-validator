@@ -3,11 +3,12 @@ primary_region = "ams"
 
 [build]
   [build.args]
-    VITE_DEMO_NOTICE = "Public demo. Fictional sample data only; anything you upload is wiped when the instance restarts."
+    VITE_DEMO_NOTICE = "Public demo. Uploads stay private to your browser session and are deleted after 30 minutes. Never upload a real asset register; use the sample files."
 
 [env]
   EAV_DOCS_ENABLED = "true"
   EAV_MAX_UPLOAD_MB = "2"
+  EAV_DEMO_RETENTION_MINUTES = "30"
 
 [http_service]
   internal_port = 8000
