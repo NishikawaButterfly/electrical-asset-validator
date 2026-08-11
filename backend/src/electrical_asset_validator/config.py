@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "Electrical Asset Validator API"
-    app_version: str = "0.1.0"
+    app_version: str = "0.2.0"
     api_prefix: str = "/api/v1"
     database_url: str = "sqlite:///./electrical_asset_validator.db"
     max_upload_mb: int = Field(default=10, ge=1, le=100)
