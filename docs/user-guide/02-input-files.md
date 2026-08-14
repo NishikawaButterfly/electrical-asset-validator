@@ -214,7 +214,7 @@ to XLSX archives, and what to do when a register is genuinely too big.
 |----------|--------------|
 | Zero bytes | `The uploaded file is empty.` |
 | Header row only, no data | `The uploaded file does not contain any data rows.` |
-| Data with no header row | The first data row is taken as the header. Expect `Column names cannot be blank.` if any cell in it is empty, or nine `MISSING_COLUMN` errors and a score of zero if it is not. |
+| Data with no header row | The first data row is taken as the header, and that row is then lost. What you get depends on what is in it: `Column names cannot be blank.` if any of its cells is empty, `Duplicate columns after normalization: ...` if two of them are the same, and otherwise nine `MISSING_COLUMN` errors, nine `UNEXPECTED_COLUMN` findings, and a score of **0.0**. |
 
 There is no way to tell the software "this file has no header row". Add one.
 

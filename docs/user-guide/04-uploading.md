@@ -30,15 +30,14 @@ Until you pick a file the button is disabled and the line beside it reads
 `Select one file to continue`. Once a file is chosen it reads `Ready to
 validate`.
 
-**Nothing is sent to the server when you choose a file for the two-tab form** —
-except one thing, described below. The note beside the heading says `Files are
-sent when you start`, and that is accurate for the validation itself.
+The note beside the heading reads `Files are sent when you start`. That is true
+of the validation itself, but not the whole story — see below.
 
 ## What happens the instant you choose a file
 
-The page immediately sends the file to the server once, to ask what its column
-headers are. This is how it knows whether to offer you the mapping panel in
-chapter [5](05-column-mapping.md).
+On the **Validate file** tab, the page immediately sends the file to the server
+once, to ask what its column headers are. This is how it knows whether to offer
+you the mapping panel in chapter [5](05-column-mapping.md).
 
 This header inspection **stores nothing**. It reads the file, reports the
 headers and which canonical field each one matches, and discards it. No
@@ -48,6 +47,10 @@ connection the file does travel twice.
 
 If the inspection fails for any reason, the page says nothing and lets you carry
 on; the real refusal, if there is one, comes when you press **Run validation**.
+
+The **Compare revisions** tab does not do this. Neither of its two files is
+inspected, which is the mechanical reason that tab has no mapping panel
+(chapter [5](05-column-mapping.md)).
 
 ## Files the page refuses without asking the server
 
