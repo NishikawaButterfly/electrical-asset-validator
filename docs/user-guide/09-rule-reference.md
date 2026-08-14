@@ -233,14 +233,21 @@ things:
 - Text where a number belongs: `not-a-number`, `TBC`, `see note`, `twenty`.
 - A unit suffix: `400 V`, `18.5 kW`. Strip the unit; the column names carry it.
 - A comma decimal separator: `18,5`. Use `18.5`.
-- **A formula in an XLSX file.** `=200*2` in `voltage_v` produces this error,
-  because workbook formulas are read as their text rather than their result. This
-  is the most common cause on a spreadsheet register that was assembled from
-  another sheet. Copy and paste-special as values before uploading; see chapter
-  [3](03-preparing-a-register.md).
+- **A broken formula in an XLSX file.** A formula is read as the result the
+  workbook stored for it, so `=200*2` is `400` and passes. But if the workbook
+  stored `#DIV/0!`, `#REF!`, or `#N/A`, that error value is what arrives here.
+  Fix the formula in the source workbook and save it again.
 
 A number too large to represent, such as `1e400`, is reported here too rather
 than as an out-of-range value.
+
+**What no longer produces this.** A working formula. Earlier versions read every
+calculated cell as its own text and reported it here, which turned a register
+assembled from another sheet into a wall of errors that said nothing about the
+data. A workbook that has never been calculated at all — one
+written by a script rather than saved by a spreadsheet program — is refused
+before any rule runs, with a single message about the file; chapter
+[2](02-input-files.md) shows it.
 
 ---
 

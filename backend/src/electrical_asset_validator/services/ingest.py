@@ -3,14 +3,17 @@ from __future__ import annotations
 import csv
 import json
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from io import BytesIO, StringIO
+from itertools import islice
 from pathlib import Path
 from typing import Any
 from zipfile import BadZipFile, ZipFile
 
 import pandas as pd
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
+from openpyxl.utils import get_column_letter
 
 CANONICAL_COLUMNS = [
     "asset_tag",
@@ -35,6 +38,11 @@ MAX_XLSX_ENTRIES = 2_000
 MAX_XLSX_UNCOMPRESSED_BYTES = 100 * 1024 * 1024
 MAX_XLSX_COMPRESSION_RATIO = 200
 MAX_SCANNED_XLSX_ROWS = 250_000
+
+# openpyxl marks a genuine formula cell with this data type. It is the only
+# way to tell =200*2 the calculation from "=200*2" the text somebody typed,
+# because both arrive as that same string.
+FORMULA_DATA_TYPE = "f"
 
 
 class DatasetError(ValueError):
@@ -176,18 +184,37 @@ def _preflight_xlsx(content: bytes) -> None:
         raise DatasetError("The XLSX workbook has an unsafe compression ratio.")
 
 
-def _read_xlsx(content: bytes) -> tuple[list[Any], list[list[Any]], list[int]]:
-    _preflight_xlsx(content)
+def _load_xlsx(content: bytes, *, data_only: bool) -> Workbook:
     try:
-        workbook = load_workbook(
+        return load_workbook(
             BytesIO(content),
             read_only=True,
-            data_only=False,
+            data_only=data_only,
             keep_links=False,
         )
     except Exception as exc:
         raise DatasetError("The XLSX workbook could not be read.") from exc
 
+
+def _formula_positions(source_row: int, cells: Sequence[Any]) -> list[tuple[int, int]]:
+    return [
+        (source_row, column)
+        for column, cell in enumerate(cells, start=1)
+        if cell.data_type == FORMULA_DATA_TYPE
+    ]
+
+
+def _scan_xlsx(
+    content: bytes,
+) -> tuple[list[Any], list[list[Any]], list[int], list[tuple[int, int]]]:
+    """Read the worksheet as it was written, noting where its formulas are.
+
+    Rows arrive as cell objects rather than bare values so that a formula can
+    be told apart by its data type. The values taken from them are the ones
+    ``values_only=True`` would have produced, so a workbook holding no formula
+    is read exactly as it always was.
+    """
+    workbook = _load_xlsx(content, data_only=False)
     try:
         if not workbook.worksheets:
             raise DatasetError("The XLSX workbook does not contain a worksheet.")
@@ -200,29 +227,33 @@ def _read_xlsx(content: bytes) -> tuple[list[Any], list[list[Any]], list[int]]:
                 f"{MAX_SCANNED_XLSX_ROWS:,} source rows."
             )
 
-        iterator = sheet.iter_rows(values_only=True)
+        iterator = sheet.iter_rows(values_only=False)
         try:
-            header_values = list(next(iterator))
+            header_cells = list(next(iterator))
         except StopIteration as exc:
             raise DatasetError("The uploaded file does not contain a header row.") from exc
 
+        header_values = [cell.value for cell in header_cells]
         while header_values and clean_scalar(header_values[-1]) is None:
             header_values.pop()
+        width = len(header_values)
+        formula_cells = _formula_positions(1, header_cells[:width])
 
         rows: list[list[Any]] = []
         row_numbers: list[int] = []
-        for source_row, values in enumerate(iterator, start=2):
-            row = list(values)
+        for source_row, cells in enumerate(iterator, start=2):
+            row = [cell.value for cell in cells]
             if _is_blank_row(row):
                 continue
-            overflow = row[len(header_values) :]
+            overflow = row[width:]
             if any(clean_scalar(value) is not None for value in overflow):
                 raise DatasetError(
                     f"XLSX row {source_row} contains data beyond the header columns."
                 )
-            row = row[: len(header_values)]
-            if len(row) < len(header_values):
-                row.extend([None] * (len(header_values) - len(row)))
+            row = row[:width]
+            if len(row) < width:
+                row.extend([None] * (width - len(row)))
+            formula_cells.extend(_formula_positions(source_row, cells[:width]))
             rows.append(row)
             row_numbers.append(source_row)
             if len(rows) > MAX_ROWS:
@@ -230,6 +261,82 @@ def _read_xlsx(content: bytes) -> tuple[list[Any], list[list[Any]], list[int]]:
     finally:
         workbook.close()
 
+    return header_values, rows, row_numbers, formula_cells
+
+
+def _read_cached_values(
+    content: bytes,
+    formula_cells: list[tuple[int, int]],
+) -> dict[tuple[int, int], Any]:
+    """Read the results the spreadsheet application stored for those cells.
+
+    A workbook cannot be read for its formulas and for their results at once,
+    so this is a second pass over the same bytes. Only a workbook that holds a
+    formula pays for it, and the pass stops at the last row that needs one.
+
+    Both passes pad every row out to the worksheet's column count, so a cell
+    keeps its position between them and can be picked out by column number.
+    """
+    wanted: dict[int, list[int]] = {}
+    for source_row, column in formula_cells:
+        wanted.setdefault(source_row, []).append(column)
+
+    cached: dict[tuple[int, int], Any] = {}
+    workbook = _load_xlsx(content, data_only=True)
+    try:
+        sheet = workbook.worksheets[0]
+        scanned = islice(sheet.iter_rows(values_only=True), max(wanted))
+        for source_row, values in enumerate(scanned, start=1):
+            for column in wanted.get(source_row, ()):
+                cached[(source_row, column)] = values[column - 1]
+    finally:
+        workbook.close()
+    return cached
+
+
+def _uncalculated_message(uncalculated: list[tuple[int, int]]) -> str:
+    source_row, column = uncalculated[0]
+    reference = f"{get_column_letter(column)}{source_row}"
+    count = len(uncalculated)
+    detail = (
+        f"a formula in cell {reference} with no stored result"
+        if count == 1
+        else f"{count:,} formulas with no stored result, the first in cell {reference}"
+    )
+    return (
+        f"The XLSX workbook has {detail}. Open it in Excel or LibreOffice and "
+        "save it so the results are stored, or replace the formulas with their "
+        "values, then upload it again."
+    )
+
+
+def _resolve_formula_cells(
+    content: bytes,
+    formula_cells: list[tuple[int, int]],
+    targets: dict[int, list[Any]],
+) -> None:
+    """Put each formula's stored result in its place, or refuse the workbook.
+
+    A workbook no spreadsheet application has ever saved -- one written by
+    openpyxl or pandas -- stores no results at all. Reading those cells as
+    empty would report a defect on every row that says nothing about the data,
+    so the file is refused once instead, as a fact about the upload.
+    """
+    cached = _read_cached_values(content, formula_cells)
+    uncalculated = [position for position in formula_cells if cached[position] is None]
+    if uncalculated:
+        raise DatasetError(_uncalculated_message(uncalculated))
+    for position in formula_cells:
+        source_row, column = position
+        targets[source_row][column - 1] = cached[position]
+
+
+def _read_xlsx(content: bytes) -> tuple[list[Any], list[list[Any]], list[int]]:
+    _preflight_xlsx(content)
+    header_values, rows, row_numbers, formula_cells = _scan_xlsx(content)
+    if formula_cells:
+        targets = {1: header_values, **dict(zip(row_numbers, rows, strict=True))}
+        _resolve_formula_cells(content, formula_cells, targets)
     return header_values, rows, row_numbers
 
 

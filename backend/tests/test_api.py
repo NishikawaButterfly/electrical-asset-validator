@@ -12,7 +12,13 @@ from electrical_asset_validator.services.ingest import (
     CANONICAL_COLUMNS,
     MAX_CELL_CHARACTERS,
 )
-from tests.conftest import csv_bytes
+from tests.conftest import (
+    FORMULA_RESULTS,
+    FORMULA_ROWS,
+    csv_bytes,
+    with_cached_values,
+    xlsx_bytes,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -156,6 +162,41 @@ async def test_comparison_is_persisted_and_uses_source_row_numbers(
     detail = await client.get(f"/api/v1/comparisons/{payload['id']}")
     assert detail.status_code == 200
     assert detail.json() == payload
+
+
+async def test_a_workbook_with_calculated_formulas_validates_on_its_values(
+    client: AsyncClient,
+) -> None:
+    content = with_cached_values(xlsx_bytes(FORMULA_ROWS), FORMULA_RESULTS)
+
+    response = await client.post("/api/v1/validations", files=_files(content, "assets.xlsx"))
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["quality_score"] == 100
+    assert payload["issues"] == []
+
+
+async def test_uncalculated_formulas_are_refused_as_one_fact_about_the_file(
+    client: AsyncClient,
+) -> None:
+    content = xlsx_bytes(FORMULA_ROWS)
+
+    response = await client.post("/api/v1/validations", files=_files(content, "assets.xlsx"))
+
+    # An upload the software cannot read faithfully is refused the way every
+    # other unreadable upload is: one status, one sentence, nothing stored.
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": (
+            "The XLSX workbook has 3 formulas with no stored result, the first "
+            "in cell G2. Open it in Excel or LibreOffice and save it so the "
+            "results are stored, or replace the formulas with their values, "
+            "then upload it again."
+        )
+    }
+    history = await client.get("/api/v1/validations")
+    assert history.json() == []
 
 
 async def test_validation_maps_nonstandard_headers_with_a_full_mapping(

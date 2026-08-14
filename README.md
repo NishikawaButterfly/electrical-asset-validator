@@ -106,6 +106,13 @@ header cannot be matched, the upload form offers to map it to one of the
 missing canonical fields. The API accepts the same mapping as an optional
 `mapping` form field on validations and comparisons.
 
+An XLSX formula is read as the result its authoring application stored, so a
+register whose ratings are calculated validates on its numbers. Nothing is
+evaluated here. A workbook written programmatically and never opened by a
+spreadsheet application stores no results, and is rejected with one message
+naming the count and the first such cell rather than reporting an empty cell on
+every row.
+
 Uploads are limited to 10 MiB by default, 50,000 non-empty data rows,
 64 columns, and 32,767 characters per cell. XLSX workbooks get extra safety
 limits on expanded archive size and compression ratio, and their used range
@@ -372,6 +379,9 @@ browser bundle.
 
 - Input is CSV and XLSX only. Legacy XLS and arbitrary workbook layouts are
   not supported.
+- No formula engine. XLSX formulas are read from the results the authoring
+  application stored, so a workbook that has never been calculated is rejected
+  instead of guessed at.
 - No multi-sheet import workflow. Column mappings apply to one upload and
   are not saved for later runs.
 - Asset types are free text rather than a managed taxonomy.

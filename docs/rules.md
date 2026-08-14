@@ -36,6 +36,13 @@ entries, 100 MiB expanded size, a bounded compression ratio, and a used range
 that does not extend beyond source row 250,000. These are product-safety
 limits, not spreadsheet-format maxima.
 
+An XLSX formula cell contributes the result the authoring application stored
+for it; the service evaluates nothing. A workbook that stores no result for a
+formula—one written programmatically and never opened by a spreadsheet
+application—cannot be given a reliable cell model and is rejected with an HTTP
+`400` naming the count and the first such cell. A stored error value such as
+`#DIV/0!` is a result, and reaches the rules as an invalid number on its row.
+
 Files that can be parsed produce findings with stable `rule` values. The
 severity returned by the API is authoritative.
 
@@ -108,7 +115,10 @@ revisions or use a future asynchronous workflow.
 - Use a period as the decimal separator and do not include unit suffixes.
 - Express voltage in volts and rated power in kilowatts.
 - In CSV files, quote text containing commas according to RFC 4180.
-- Do not place formulas, macros, or sensitive free-form notes in the register.
+- XLSX formulas are supported, provided the workbook has been saved by a
+  spreadsheet application so that its results are stored. Issued revisions are
+  better held as values.
+- Do not place macros or sensitive free-form notes in the register.
 
 See [`../sample-data/README.md`](../sample-data/README.md) for a reproducible
 example containing both valid records and intentional failures.

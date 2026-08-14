@@ -162,17 +162,44 @@ see chapter [15](15-xlsx-report.md).
   or complained about. If your register is on sheet 3, move it to the front or
   save that sheet as CSV.
 
-- **Formulas are read as text, not as their results.** This one catches people.
-  A workbook with `=200*2` in `voltage_v` and `=11*2` in `power_kw` produced:
+- **Formulas are read as their result.** A workbook whose `voltage_v` held
+  `=200*2` and whose `power_kw` held `=11*2` validated as `400` and `22`, with a
+  score of **100**. A register assembled by formula from a transformer schedule
+  or a sum of circuits is read as the numbers an engineer sees on screen.
+
+  The result is the one **your spreadsheet stored** when it last saved the
+  file. This software does not calculate anything; it reads what Excel or
+  LibreOffice already worked out. That distinction is the whole of the next
+  point.
+
+- **A workbook that has never been calculated is refused.** A file written by a
+  script — openpyxl, pandas, a reporting tool — contains the formulas but no
+  results, because nothing ever evaluated them. There is nothing to read, so
+  the upload is refused rather than treated as a register full of empty cells:
 
   ```
-  error  INVALID_NUMBER  row 3  MTR-001  voltage_v  'voltage_v' must be a finite number.
-  error  INVALID_NUMBER  row 3  MTR-001  power_kw   'power_kw' must be a finite number.
+  The XLSX workbook has 5 formulas with no stored result, the first in cell G2. Open it in Excel or LibreOffice and save it so the results are stored, or replace the formulas with their values, then upload it again.
   ```
 
-  Registers assembled by formula from another sheet will fail on every
-  calculated cell. Copy and paste-special as values before uploading — see
-  chapter [3](03-preparing-a-register.md).
+  Opening the file and saving it is enough — that is what stores the results.
+  The message names one cell so you can find the problem in a mixed file, where
+  the wording is singular:
+
+  ```
+  The XLSX workbook has a formula in cell H4 with no stored result. Open it in Excel or LibreOffice and save it so the results are stored, or replace the formulas with their values, then upload it again.
+  ```
+
+  You will not see this from a file a person saved from a spreadsheet program.
+  It appears when a register is generated and handed straight over.
+
+- **A formula whose stored result is an error stays an error.** If the workbook
+  saved `#DIV/0!` or `#REF!` for a cell, that is what is read, and the ordinary
+  rules report it against the row — `'power_kw' must be a finite number.` The
+  file is not refused, because the workbook did give an answer. It gave a bad
+  one, and that belongs to the row.
+
+- **Text that merely looks like a formula is left alone.** A cell formatted as
+  text and containing `=200*2` is not a formula and is read as that string.
 
 - **Date-formatted cells become ISO text.** A real date in `asset_tag` came back
   as `2026-03-01T00:00:00`, which then failed the tag format rule. Keep dates out
