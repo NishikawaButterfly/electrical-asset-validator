@@ -13,6 +13,14 @@ wiped when it restarts.
 There is also a [short demo video](https://github.com/NishikawaButterfly/electrical-asset-validator/releases/download/v0.1.0/validator-demo.mp4)
 of the whole flow, from mapping nonstandard columns to comparing revisions.
 
+This README covers what the software is and how it is built. If instead you have
+a register to certify, the [**user manual**](docs/user-guide/README.md) covers
+every operation from the other side: supported files, column mapping, the quality
+score, a reference for every rule the engine can report with its exact message
+and how to fix the source data, revision comparison, both report exports,
+retention, limits, troubleshooting, and a worked handover from first upload to
+exported evidence.
+
 ## Problem
 
 Electrical asset registers move between design, commissioning, and operations
@@ -268,7 +276,8 @@ exported report it produces is committed next to it.
 ├── docs/
 │   ├── architecture.md      Runtime boundaries and design decisions
 │   ├── case-study.md        Worked example from raw file to clean register
-│   └── rules.md             Validation and comparison rule catalogue
+│   ├── rules.md             Validation and comparison rule catalogue
+│   └── user-guide/          User manual, one chapter per operation
 ├── .github/workflows/ci.yml Backend and frontend continuous integration
 ├── .env.example             Local configuration template
 └── docker-compose.yml       Frontend, backend, and PostgreSQL stack
