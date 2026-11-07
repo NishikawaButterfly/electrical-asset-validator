@@ -55,6 +55,14 @@ updates:
     labels:
       - dependencies
       - javascript
+    # @types/node describes the API of one Node release line, and CI and
+    # both Dockerfiles that build the frontend use Node 22. Its major
+    # releases are ignored, so the types move to a new major with Node, by
+    # hand; minor and patch releases still come with the tooling.
+    ignore:
+      - dependency-name: "@types/node"
+        update-types:
+          - version-update:semver-major
     groups:
       # React and the type packages that follow its versions. Listed first,
       # because a dependency joins the first group it matches.
