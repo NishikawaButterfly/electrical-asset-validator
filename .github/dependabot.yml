@@ -1,0 +1,117 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - python
+    # update-types keeps major releases out of the runtime groups, and each
+    # one arrives in a pull request of its own. psycopg and sqlalchemy stay
+    # individual, so every database version is reviewed on its own, and so
+    # do the build requirements.
+    groups:
+      # The dev extra. The images never install it, so an upgrade of any
+      # size only has to pass CI.
+      dev-tools:
+        patterns:
+          - httpx
+          - mypy
+          - pandas-stubs
+          - pip-audit
+          - pytest
+          - pytest-cov
+          - ruff
+          - types-openpyxl
+          - types-reportlab
+      # What serves the HTTP API.
+      api-server:
+        patterns:
+          - fastapi
+          - pydantic-settings
+          - python-multipart
+          - uvicorn
+        update-types:
+          - minor
+          - patch
+      # What reads uploaded registers and writes the PDF and XLSX reports.
+      file-formats:
+        patterns:
+          - openpyxl
+          - pandas
+          - pillow
+          - reportlab
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - javascript
+    # @types/node describes the API of one Node release line, and CI and
+    # both Dockerfiles that build the frontend use Node 22. Its major
+    # releases are ignored, so the types move to a new major with Node, by
+    # hand; minor and patch releases still come with the tooling.
+    ignore:
+      - dependency-name: "@types/node"
+        update-types:
+          - version-update:semver-major
+    groups:
+      # React and the type packages that follow its versions. Listed first,
+      # because a dependency joins the first group it matches.
+      react:
+        patterns:
+          - react
+          - react-dom
+          - "@types/react"
+          - "@types/react-dom"
+        update-types:
+          - minor
+          - patch
+      # The build, lint and test tooling, none of which the images ship. The
+      # React types are left out so that their major releases arrive on
+      # their own, as React's do, rather than with the tooling.
+      dev-tools:
+        dependency-type: development
+        exclude-patterns:
+          - "@types/react"
+          - "@types/react-dom"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - ci
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: docker
+    directories:
+      - /
+      - /backend
+      - /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - container
+    groups:
+      # The root Dockerfile, which the Fly demo is built from, uses the same
+      # base images as the two compose Dockerfiles, and CI builds only the
+      # compose ones. One pull request per image, across every directory
+      # that uses it, keeps each image on one tag in all three files.
+      base-images:
+        group-by: dependency-name
