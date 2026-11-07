@@ -203,7 +203,7 @@ jobs:
 
       - name: Audit the production dependencies
         # --omit=dev leaves out the build, lint and test tooling, which the
-        # images run only in their build stage. What remains is the two
+        # images install only in their build stage. What remains is the two
         # libraries the application imports, react and react-dom, and what
         # they depend on. An advisory of any severity there fails the job,
         # as on the backend.
