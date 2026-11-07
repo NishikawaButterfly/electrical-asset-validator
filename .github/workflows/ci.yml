@@ -143,27 +143,30 @@ jobs:
         # coverage to stay fast; this is the only place the threshold lives.
         run: python -m pytest --cov=electrical_asset_validator --cov-fail-under=91
 
-      - name: Install the backend as the images do
-        # Both Dockerfiles upgrade pip and run a plain `pip install .`: no dev
-        # extra and no lock file, so an image holds whatever that resolves to
-        # on the day it is built. Repeat it in an empty environment of its
-        # own, apart from the dev install above.
-        run: |
-          python -m venv "${RUNNER_TEMP}/runtime"
-          "${RUNNER_TEMP}/runtime/bin/python" -m pip install --upgrade pip
-          "${RUNNER_TEMP}/runtime/bin/python" -m pip install .
+      - name: Build the backend image
+        # The image compose runs, from the same context, with its base image
+        # pulled fresh. Both Dockerfiles that install the backend upgrade pip
+        # and run a plain `pip install .`: no dev extra and no lock file, so
+        # an image holds whatever that resolves to on the day it is built.
+        run: docker build --pull --tag electrical-asset-validator-backend .
 
-      - name: Audit the runtime dependencies
-        # Everything that environment holds except the project itself, pip
-        # included, is checked against OSV, which also returns GitHub
-        # advisories that pip-audit's default PyPI service can miss. Any
-        # known advisory fails the job; pip-audit has no severity threshold.
-        # --strict fails on an entry it cannot check instead of skipping it,
-        # which is why the project's own entry, a local file URL, is left out.
+      - name: Audit the backend image's Python packages
+        # The list comes from the image's own interpreter, so it follows the
+        # base image, not the Python this job runs. Everything there except
+        # the project itself, pip included, is checked against OSV, which
+        # also returns GitHub advisories that pip-audit's default PyPI
+        # service can miss. Any known advisory fails the job; pip-audit has
+        # no severity threshold. --strict fails on an entry it cannot check
+        # instead of skipping it, which is why the project's own entry, a
+        # local file URL, is left out. The interpreter is not a package: its
+        # version is printed, not audited.
         run: |
-          requirements="${RUNNER_TEMP}/runtime-requirements.txt"
-          "${RUNNER_TEMP}/runtime/bin/python" -m pip freeze --all \
-            --exclude electrical-asset-validator > "${requirements}"
+          requirements="${RUNNER_TEMP}/image-requirements.txt"
+          docker run --rm --entrypoint python electrical-asset-validator-backend \
+            --version
+          docker run --rm --entrypoint python electrical-asset-validator-backend \
+            -m pip freeze --all --exclude electrical-asset-validator \
+            > "${requirements}"
           cat "${requirements}"
           python -m pip_audit --requirement "${requirements}" \
             --no-deps --disable-pip --strict \
