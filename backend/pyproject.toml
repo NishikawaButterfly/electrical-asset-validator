@@ -14,6 +14,13 @@ dependencies = [
   "fastapi>=0.115,<1",
   "openpyxl>=3.1,<4",
   "pandas>=2.2,<3",
+  # Pillow is not imported here: reportlab requires it, and openpyxl uses it
+  # to open images embedded in an uploaded workbook's chartsheets, even in
+  # read-only mode. Every release before 13.0.0 has published security
+  # advisories, so the floor is declared directly. No upper bound, unlike
+  # the requirements around it: nothing here calls Pillow's API, so a cap
+  # could only hold back a later security release.
+  "pillow>=13.0.0",
   "psycopg[binary]>=3.2,<4",
   "pydantic-settings>=2.6,<3",
   "python-multipart>=0.0.12,<1",
