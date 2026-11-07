@@ -24,7 +24,7 @@ WORKDIR /app
 
 RUN addgroup --system app && adduser --system --ingroup app app
 
-COPY backend/pyproject.toml backend/README.md ./
+COPY backend/pyproject.toml backend/README.md backend/LICENSE ./
 COPY backend/src ./src
 
 RUN python -m pip install --upgrade pip \
