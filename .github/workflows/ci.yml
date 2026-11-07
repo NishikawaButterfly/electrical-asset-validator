@@ -143,6 +143,32 @@ jobs:
         # coverage to stay fast; this is the only place the threshold lives.
         run: python -m pytest --cov=electrical_asset_validator --cov-fail-under=91
 
+      - name: Install the backend as the images do
+        # Both Dockerfiles upgrade pip and run a plain `pip install .`: no dev
+        # extra and no lock file, so an image holds whatever that resolves to
+        # on the day it is built. Repeat it in an empty environment of its
+        # own, apart from the dev install above.
+        run: |
+          python -m venv "${RUNNER_TEMP}/runtime"
+          "${RUNNER_TEMP}/runtime/bin/python" -m pip install --upgrade pip
+          "${RUNNER_TEMP}/runtime/bin/python" -m pip install .
+
+      - name: Audit the runtime dependencies
+        # Everything that environment holds except the project itself, pip
+        # included, is checked against OSV, which also returns GitHub
+        # advisories that pip-audit's default PyPI service can miss. Any
+        # known advisory fails the job; pip-audit has no severity threshold.
+        # --strict fails on an entry it cannot check instead of skipping it,
+        # which is why the project's own entry, a local file URL, is left out.
+        run: |
+          requirements="${RUNNER_TEMP}/runtime-requirements.txt"
+          "${RUNNER_TEMP}/runtime/bin/python" -m pip freeze --all \
+            --exclude electrical-asset-validator > "${requirements}"
+          cat "${requirements}"
+          python -m pip_audit --requirement "${requirements}" \
+            --no-deps --disable-pip --strict \
+            --vulnerability-service osv --progress-spinner off
+
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
@@ -171,3 +197,11 @@ jobs:
 
       - name: Build frontend
         run: npm run build
+
+      - name: Audit the production dependencies
+        # --omit=dev leaves out the build, lint and test tooling, which the
+        # images run only in their build stage. What remains is the two
+        # libraries the application imports, react and react-dom, and what
+        # they depend on. An advisory of any severity there fails the job,
+        # as on the backend.
+        run: npm audit --omit=dev --audit-level=low
