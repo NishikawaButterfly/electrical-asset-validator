@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import shlex
 import tomllib
 from pathlib import Path
 
@@ -8,6 +9,7 @@ import pytest
 
 BACKEND = Path(__file__).resolve().parents[1]
 REPOSITORY = BACKEND.parent
+WORKFLOW = REPOSITORY / ".github" / "workflows" / "ci.yml"
 
 # Both Dockerfiles that install the backend: the compose image, built from
 # backend/ alone, and the single-container image the public demo is built
@@ -62,6 +64,11 @@ EXPECTED = [
     ("", f"RUN {INSTALL_WHEEL} && python -m pip check"),
 ]
 
+# Options that decide where and how uv export writes its list, rather than
+# which packages it lists.
+LAYOUT_FLAGS = {"--frozen", "--locked", "--no-annotate", "--no-hashes", "--no-header"}
+LAYOUT_OPTIONS = {"--directory", "--output-file"}
+
 
 def instructions(dockerfile: Path) -> list[tuple[str, str]]:
     """Return every instruction of a Dockerfile with the name of its stage.
@@ -97,6 +104,34 @@ def pip_and_uv(dockerfile: Path) -> list[tuple[str, str]]:
     ]
 
 
+def selection(command: str) -> list[tuple[str, str]]:
+    """Return the options of a uv export that choose what it lists, each with
+    its value, if it takes one."""
+    words = shlex.split(command)[2:]
+    chosen: list[tuple[str, str]] = []
+    while words:
+        option = words.pop(0)
+        value = words.pop(0) if words and not words[0].startswith("-") else ""
+        if option not in LAYOUT_FLAGS | LAYOUT_OPTIONS:
+            chosen.append((option, value))
+    return sorted(chosen)
+
+
+def workflow_exports() -> dict[str, list[list[tuple[str, str]]]]:
+    """Return, for each step of the CI workflow that runs uv export, what each
+    of its exports selects."""
+    exports: dict[str, list[list[tuple[str, str]]]] = {}
+    step = ""
+    for line in WORKFLOW.read_text(encoding="utf-8").replace("\\\n", " ").splitlines():
+        if line.lstrip().startswith("#"):
+            continue
+        if match := re.match(r"\s+- name: (.+)$", line):
+            step = match.group(1)
+        if "uv export" in line:
+            exports.setdefault(step, []).append(selection(line[line.index("uv export") :]))
+    return exports
+
+
 @pytest.mark.parametrize("name", DOCKERFILES)
 def test_pip_and_uv_run_only_to_install_the_lock(name: str) -> None:
     """No package but the project goes into an image, or into building it,
@@ -110,3 +145,15 @@ def test_the_lock_holds_the_build_requirements() -> None:
     pyproject = tomllib.loads((BACKEND / "pyproject.toml").read_text(encoding="utf-8"))
     groups = pyproject.get("dependency-groups", {})
     assert groups.get("build") == pyproject["build-system"]["requires"]
+
+
+def test_ci_audits_and_checks_what_the_images_export() -> None:
+    """The audit has to read the two lists the images install from, the image
+    check the first of them, and the backend job has to test on both."""
+    image = selection(EXPORT_IMAGE)
+    build = selection(EXPORT_BUILD)
+    assert workflow_exports() == {
+        "Check that each image holds exactly the locked set": [image, image],
+        "Install backend": [sorted([*image, ("--group", "build"), ("--extra", "dev")])],
+        "Audit what the images install": [image, build],
+    }
