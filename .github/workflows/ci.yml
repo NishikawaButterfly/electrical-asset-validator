@@ -273,6 +273,27 @@ jobs:
         # coverage to stay fast; this is the only place the threshold lives.
         run: python -m pytest --cov=electrical_asset_validator --cov-fail-under=91
 
+      - name: Audit what the images install
+        # The two lists the images export from uv.lock, the runtime
+        # dependencies with pip and the build requirements the project is
+        # built with, checked against OSV, which also carries GitHub
+        # advisories that pip-audit's default PyPI service misses. pip-audit
+        # has no severity threshold: any known advisory fails the job. It
+        # skips an entry whose markers do not match the interpreter it runs
+        # on, so it runs here, on Linux like the images. pip checks the hashes
+        # whenever a list is installed; with OSV, --require-hashes only
+        # requires every entry to carry them. The step runs even when an
+        # earlier one has failed, so a failing test cannot hide an advisory.
+        if: ${{ !cancelled() }}
+        run: |
+          uv export --frozen --no-default-groups --group image --no-emit-project \
+            --output-file "${RUNNER_TEMP}/requirements.txt"
+          uv export --frozen --only-group build --output-file "${RUNNER_TEMP}/build-requirements.txt"
+          python -m pip_audit --requirement "${RUNNER_TEMP}/requirements.txt" \
+            --requirement "${RUNNER_TEMP}/build-requirements.txt" \
+            --require-hashes --disable-pip --strict \
+            --vulnerability-service osv --progress-spinner off
+
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
