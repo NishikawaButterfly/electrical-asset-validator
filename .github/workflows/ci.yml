@@ -302,3 +302,16 @@ jobs:
 
       - name: Build frontend
         run: npm run build
+
+      - name: Audit the production dependencies
+        # npm ci already audits the whole tree and prints what it finds, but
+        # never fails the job. --omit=dev leaves out the build, lint and test
+        # packages, which both Dockerfiles that build the frontend install in
+        # their build stage only, copying just the built bundle into the image
+        # they ship. What remains is react and react-dom and what they depend
+        # on. --audit-level=low fails the job on an advisory of any severity
+        # there, as on the backend: the advisories npm audit reports are
+        # GitHub's, rated low, moderate, high or critical. The step runs even
+        # when an earlier one has failed.
+        if: ${{ !cancelled() }}
+        run: npm audit --omit=dev --audit-level=low
