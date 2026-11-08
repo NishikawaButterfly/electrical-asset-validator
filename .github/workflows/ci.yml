@@ -4,10 +4,24 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    # Mondays at 05:41 UTC, so that an advisory published against what main
+    # already ships fails a run within a week even when nothing is pushed.
+    # GitHub delays scheduled runs at the start of every hour, when load is
+    # highest, and can drop queued ones, so the minute is not :00.
+    - cron: "41 5 * * 1"
   workflow_dispatch:
 
 permissions:
   contents: read
+
+# bash -eo pipefail rather than the default bash -e, so that a failing
+# command in a pipeline fails its step instead of handing an empty list to the
+# next command. A job that sets defaults of its own replaces these, so the
+# backend and frontend jobs name the shell again.
+defaults:
+  run:
+    shell: bash
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -20,13 +34,89 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.4.0
 
       - name: Validate Docker Compose
         run: docker compose --env-file .env.example config --quiet
 
       - name: Build application images
         run: docker compose --env-file .env.example build
+
+      - name: Build the single-container image
+        # The image the public demo is built from, which compose does not
+        # build.
+        run: docker build --tag electrical-asset-validator-demo .
+
+      - name: Read the uv release the images use
+        id: uv
+        run: |
+          version="$(sed -n 's|^FROM ghcr.io/astral-sh/uv:\([0-9][0-9.]*\) AS uv$|\1|p' backend/Dockerfile)"
+          test -n "${version}"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: ${{ steps.uv.outputs.version }}
+          enable-cache: false
+
+      - name: Check that each image holds exactly the locked set
+        # Two checks per image. pip, run inside the image with no index to
+        # fetch from, must find every locked package that applies to that
+        # interpreter already installed at the locked version. Then every
+        # package the image holds must be in the lock at the version
+        # installed, except the project itself, which must be there too.
+        run: |
+          locked="${RUNNER_TEMP}/locked.txt"
+          uv export --directory backend --frozen --no-default-groups --group image \
+            --no-emit-project --no-hashes --no-annotate --no-header --output-file "${locked}"
+          normalise() {
+            awk -F '==' 'NF == 2 { name = tolower($1); gsub(/[-_.]+/, "-", name); print name "==" $2 }' \
+              | sort
+          }
+          sed 's/ ;.*//' "${locked}" | normalise > "${RUNNER_TEMP}/locked-names.txt"
+          for image in electrical-asset-validator-backend electrical-asset-validator-demo; do
+            echo "::group::${image}"
+            docker run --rm --entrypoint python \
+              --volume "${locked}:/tmp/locked.txt:ro" "${image}" \
+              -m pip install --dry-run --no-deps --no-index --disable-pip-version-check \
+              --requirement /tmp/locked.txt
+            docker run --rm --entrypoint python "${image}" \
+              -m pip list --format=freeze --disable-pip-version-check \
+              | normalise > "${RUNNER_TEMP}/installed.txt"
+            cat "${RUNNER_TEMP}/installed.txt"
+            echo "::endgroup::"
+            comm -23 "${RUNNER_TEMP}/installed.txt" "${RUNNER_TEMP}/locked-names.txt" \
+              > "${RUNNER_TEMP}/not-locked.txt"
+            if ! grep --quiet '^electrical-asset-validator==' "${RUNNER_TEMP}/not-locked.txt"; then
+              echo "${image} does not hold the project itself"
+              exit 1
+            fi
+            # grep exits 1 when it selects nothing, which is the pass here.
+            unlocked="$(
+              grep --invert-match '^electrical-asset-validator==' "${RUNNER_TEMP}/not-locked.txt" \
+                || test "$?" -eq 1
+            )"
+            if [ -n "${unlocked}" ]; then
+              echo "${image} holds packages the lock does not record:"
+              echo "${unlocked}"
+              exit 1
+            fi
+            echo "${image}: $(wc -l < "${RUNNER_TEMP}/installed.txt") packages, the locked set and the project"
+          done
+
+      - name: Smoke-test the single-container image
+        run: |
+          docker run --detach --name demo --publish 127.0.0.1:8001:8000 \
+            electrical-asset-validator-demo
+          for _ in $(seq 30); do
+            curl --fail --silent --output /dev/null http://127.0.0.1:8001/api/v1/health && break
+            sleep 1
+          done
+          curl --fail --show-error http://127.0.0.1:8001/api/v1/health
+          curl --fail --show-error --silent http://127.0.0.1:8001/ \
+            | grep --fixed-strings '<title>Electrical Asset Validator</title>'
+          docker rm --force demo
 
       - name: Start the complete stack
         run: docker compose --env-file .env.example up --detach --wait
@@ -113,20 +203,51 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
+        shell: bash
         working-directory: backend
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.4.0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v5.6.0
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: backend/pyproject.toml
+          cache-dependency-path: backend/uv.lock
+
+      - name: Read the uv release the images use
+        id: uv
+        # backend/Dockerfile names the release in its uv stage, and the root
+        # Dockerfile must name the same one, so CI locks and exports with
+        # exactly the uv that builds the images.
+        run: |
+          version="$(sed -n 's|^FROM ghcr.io/astral-sh/uv:\([0-9][0-9.]*\) AS uv$|\1|p' Dockerfile)"
+          test -n "${version}"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: ${{ steps.uv.outputs.version }}
+          enable-cache: false
+
+      - name: Check that uv.lock matches pyproject.toml
+        # Fails when a requirement in pyproject.toml has changed and the lock
+        # has not been regenerated with uv lock.
+        run: uv lock --check
 
       - name: Install backend
-        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
+        # The packages the images install, the locked runtime set and pip,
+        # plus the locked dev extra, every file checked against its hash. The
+        # project goes in last, editable, with nothing resolved.
+        run: |
+          uv export --frozen --extra dev --group image --no-emit-project \
+            --output-file "${RUNNER_TEMP}/requirements-dev.txt"
+          python -m pip install --no-deps --require-hashes --only-binary=:all: \
+            --requirement "${RUNNER_TEMP}/requirements-dev.txt"
+          python -m pip install --no-deps --editable .
+          python -m pip check
 
       - name: Check backend formatting
         run: python -m ruff format --check .
@@ -143,18 +264,37 @@ jobs:
         # coverage to stay fast; this is the only place the threshold lives.
         run: python -m pytest --cov=electrical_asset_validator --cov-fail-under=91
 
+      - name: Audit what the images install
+        # The set the images export from uv.lock, the runtime dependencies and
+        # pip, checked against OSV, which also carries GitHub advisories that
+        # pip-audit's default PyPI service misses. pip-audit has no severity
+        # threshold: any known advisory fails the job. It skips an entry whose
+        # markers do not match the interpreter it runs on, so it runs here, on
+        # Linux like the images. pip checks the hashes whenever the set is
+        # installed; with OSV, --require-hashes only requires every entry to
+        # carry them. The step runs even when an earlier one has failed, so a
+        # failing test cannot hide an advisory.
+        if: ${{ !cancelled() }}
+        run: |
+          uv export --frozen --no-default-groups --group image --no-emit-project \
+            --output-file "${RUNNER_TEMP}/image-requirements.txt"
+          python -m pip_audit --requirement "${RUNNER_TEMP}/image-requirements.txt" \
+            --require-hashes --disable-pip --strict \
+            --vulnerability-service osv --progress-spinner off
+
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
     defaults:
       run:
+        shell: bash
         working-directory: frontend
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.4.0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v4.4.0
         with:
           node-version: 22
           cache: npm
@@ -171,3 +311,16 @@ jobs:
 
       - name: Build frontend
         run: npm run build
+
+      - name: Audit the production dependencies
+        # npm ci already audits the whole tree and prints what it finds, but
+        # never fails the job. --omit=dev leaves out the build, lint and test
+        # packages, which both Dockerfiles that build the frontend install in
+        # their build stage only, copying just the built bundle into the image
+        # they ship. What remains is react and react-dom and what they depend
+        # on. --audit-level=low fails the job on an advisory of any severity
+        # there, as on the backend: the advisories npm audit reports are
+        # GitHub's, rated low, moderate, high or critical. The step runs even
+        # when an earlier one has failed.
+        if: ${{ !cancelled() }}
+        run: npm audit --omit=dev --audit-level=low
