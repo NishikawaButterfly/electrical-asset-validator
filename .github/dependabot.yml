@@ -1,0 +1,159 @@
+version: 2
+updates:
+  # backend/uv.lock, which pins everything the images install and the
+  # setuptools they build the project with. The uv updater relocks it with
+  # uv lock --upgrade-package, after writing any change to pyproject.toml.
+  - package-ecosystem: uv
+    directory: /backend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - python
+    # The images install every locked runtime package, transitive ones
+    # included, not only the ones pyproject.toml names, so every package in
+    # the lock is kept current; by default version updates cover only the
+    # declared dependencies. That also covers
+    # psycopg and uvicorn: Dependabot keys a dependency declared with an
+    # extra, psycopg[binary] or uvicorn[standard], apart from the locked
+    # package of the same name, and only the locked one has a version.
+    allow:
+      - dependency-type: all
+    # A range in pyproject.toml changes only when a release falls outside
+    # it; inside it, only the lock moves. Set here because, left to itself,
+    # Dependabot picks between this and raising every floor by looking the
+    # project's name up on PyPI.
+    versioning-strategy: widen
+    # A dependency joins the first group it matches, and one that matches no
+    # group gets a pull request of its own. update-types keeps major
+    # releases out of the groups: a package with a new major leaves its group
+    # and gets a pull request for that major alone, on a run when the group
+    # has no open pull request, since while one is open Dependabot counts
+    # every dependency the group covers as handled. Until that major is
+    # merged or ignored, the package's minor and patch releases stop.
+    groups:
+      # The dev extra. The images never install it.
+      dev-extra:
+        patterns:
+          - httpx
+          - mypy
+          - pandas-stubs
+          - pip-audit
+          - pytest
+          - pytest-cov
+          - ruff
+          - types-openpyxl
+          - types-reportlab
+        update-types:
+          - minor
+          - patch
+      # psycopg[binary] pins psycopg-binary to its own version, so the two
+      # move together, in a pull request of their own whatever the update.
+      # The pattern takes psycopg, psycopg-binary and psycopg[binary].
+      postgresql-driver:
+        patterns:
+          - "psycopg*"
+      # Every other minor and patch release, except those of the libraries
+      # that read a register's values, numpy, openpyxl and pandas, and of the
+      # one that stores runs, sqlalchemy, which arrive one release at a time,
+      # each in a pull request of its own. Dependabot reads x.y.z by position,
+      # so until fastapi, uvicorn and the other 0.x packages reach 1.0 their
+      # breaking releases count as minor and arrive here, gated by CI.
+      routine:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - numpy
+          - openpyxl
+          - pandas
+          - sqlalchemy
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - javascript
+    # @types/node describes the API of one Node release line, and CI and
+    # both Dockerfiles that build the frontend run Node 22. A new major
+    # moves by hand, in all four places at once, and
+    # backend/tests/test_versions.py fails if one is left behind.
+    ignore:
+      - dependency-name: "@types/node"
+        update-types:
+          - version-update:semver-major
+    groups:
+      # React and the type packages that follow its versions, in one pull
+      # request whatever the update, since react-dom requires a react of its
+      # own release line. Listed first, so the type packages land here rather
+      # than with the other development dependencies.
+      react:
+        patterns:
+          - react
+          - react-dom
+          - "@types/react"
+          - "@types/react-dom"
+      # The build, lint and test packages, none of which the images ship.
+      # A major release of one of them arrives alone, on a run when this
+      # group has no open pull request.
+      dev-dependencies:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - ci
+    groups:
+      # The workflow pins every action to the commit of a release, and
+      # Dependabot reads the release from the tag at that commit, so routine
+      # releases arrive here together and a new major alone, on a run when
+      # this group has no open pull request.
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: docker
+    directories:
+      - /
+      - /backend
+      - /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - container
+    # Node and Python move by hand, together with setup-node, setup-python
+    # and @types/node, and backend/tests/test_versions.py fails if one place
+    # is left behind. Python's minor releases are ignored as well, because
+    # Dependabot reads 3.12 to 3.13 as a minor release.
+    ignore:
+      - dependency-name: node
+        update-types:
+          - version-update:semver-major
+      - dependency-name: python
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+    groups:
+      # One pull request per image across the three directories, so the uv
+      # stage, which two Dockerfiles share, moves in both at once, its
+      # digest with it.
+      images:
+        group-by: dependency-name
