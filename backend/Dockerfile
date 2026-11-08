@@ -11,7 +11,7 @@ RUN addgroup --system app && adduser --system --ingroup app app \
     && mkdir -p /data \
     && chown app:app /data
 
-COPY pyproject.toml README.md ./
+COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
 
 RUN python -m pip install --upgrade pip \
