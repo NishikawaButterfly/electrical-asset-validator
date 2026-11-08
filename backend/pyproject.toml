@@ -11,6 +11,9 @@ requires-python = ">=3.12"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Electrical Asset Validator contributors" }]
+# These ranges are what the backend accepts. uv.lock, which uv lock generates
+# from this file, pins what the images install, and an image refuses to build
+# from a lock that no longer matches it.
 dependencies = [
   "fastapi>=0.115,<1",
   "openpyxl>=3.1,<4",
@@ -41,6 +44,13 @@ dev = [
   "types-openpyxl>=3.1",
   "types-reportlab>=4.2",
 ]
+
+[dependency-groups]
+# What an image installs besides the runtime dependencies: pip itself.
+# python:3.12-slim ships the pip that Python 3.12's ensurepip bundles, 25.0.1,
+# and every pip release before 26.2 has published security advisories, so the
+# images replace it with the release locked here.
+image = ["pip>=26.2"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
