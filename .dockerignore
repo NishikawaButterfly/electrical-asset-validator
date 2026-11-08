@@ -1,0 +1,56 @@
+# The context of the root Dockerfile, which builds the single-container
+# image the public demo is deployed from. Docker reads the .dockerignore at
+# the root of a context, not the ones below it, so backend/.dockerignore and
+# frontend/.dockerignore, which compose uses for its own two images, do not
+# apply here. The image installs the frontend from package-lock.json and the
+# backend from uv.lock, so nothing installed, built or kept in a working tree
+# may reach it: this file leaves out, at any depth, everything git ignores
+# and everything the two image contexts leave out.
+
+# Repository
+**/.git
+**/.gitignore
+
+# Environment and local configuration
+**/.env
+**/.env.local
+
+# Python
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.coverage
+**/htmlcov
+**/.venv
+**/venv
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+**/*.egg-info
+**/build
+backend/tests
+
+# Node.js
+**/node_modules
+**/dist
+**/coverage
+**/.eslintcache
+**/*.tsbuildinfo
+
+# Test and build output
+**/test-results
+**/playwright-report
+**/*.log
+
+# Editors and operating systems
+**/.idea
+**/.vscode
+**/.DS_Store
+**/Thumbs.db
+
+# Local data
+**/postgres-data
+**/uploads
+**/exports

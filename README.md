@@ -146,6 +146,11 @@ Open:
 These addresses are served by the stack you just started, so they only respond
 while `docker compose up` is running.
 
+The backend image installs exactly the runtime packages pinned in
+`backend/uv.lock`, builds the project with the setuptools the lock pins, and
+stops if that file no longer matches `backend/pyproject.toml`. See
+[Dependencies](#dependencies).
+
 To customize ports or credentials:
 
 ```bash
@@ -182,6 +187,18 @@ cd backend
 python -m pytest
 ```
 
+That install resolves the ranges in `pyproject.toml`, so it can pick newer
+releases than the ones CI tests and the images ship. With
+[uv](https://docs.astral.sh/uv/), this installs exactly the locked set, the
+dev extra included, into `.venv` instead; prefix the commands above with
+`uv run`:
+
+```bash
+cd backend
+uv sync --locked --extra dev
+uv run pytest
+```
+
 ### Frontend
 
 Node.js 22 or newer is recommended.
@@ -204,6 +221,77 @@ npm run lint
 npm run test
 npm run build
 ```
+
+## Dependencies
+
+`backend/pyproject.toml` declares the ranges the backend accepts, and
+`backend/uv.lock` pins one version inside them for every package: the
+runtime dependencies the images ship, the pip they install and the
+setuptools they build the project with, and the dev extra CI installs. uv
+generates the lock from `pyproject.toml` and records, for every pinned
+version, the sha256 of each file PyPI serves for the Pythons the project
+supports. One resolution covers every platform and every one of those
+Pythons, the images' CPython 3.12 on Linux among them.
+
+Both images that install the backend, the compose image and the
+single-container image the public demo is deployed from, export two lists
+from the lock with uv in a build stage of their own: the runtime
+dependencies, plus pip itself through the `image` dependency group, and the
+project's one build requirement, setuptools, through the `build` group. A
+second stage installs the build list and builds the project's wheel with it,
+without build isolation or a package index, and the image installs the
+runtime list and then that wheel. Both lists go in with
+`--no-deps --require-hashes --only-binary=:all:`, so every file is checked
+against the lock, pip resolves nothing, and nothing from the lock is built
+from source; `pip check` then confirms that every requirement is met. The
+export runs with `--locked`, so a lock that no longer matches
+`pyproject.toml` stops the build. uv comes from its own image, pinned by
+digest, and never reaches the image that runs. The frontend images install
+`frontend/package-lock.json` with `npm ci`, and the root `.dockerignore`
+keeps what a working tree has installed or built out of the single-container
+image.
+
+After changing a requirement in `pyproject.toml`, regenerate the lock and
+commit both files:
+
+```bash
+cd backend
+uv lock
+```
+
+To move locked packages to newer releases inside the ranges:
+
+```bash
+cd backend
+uv lock --upgrade-package fastapi   # one package
+uv lock --upgrade                   # all of them
+```
+
+Use the uv release that the `uv` stage of `backend/Dockerfile` names; CI
+reads it from there. `uv lock --check` fails when the lock is stale, and CI
+runs it on every pull request and every push to `main`.
+
+Dependabot proposes these updates every week, along with those for the
+frontend, the workflow actions and the base images (`.github/dependabot.yml`):
+minor and patch releases in groups, and numpy, openpyxl, pandas and
+sqlalchemy one release at a time. A major release comes in a pull request of
+its own on a run when its group has no open pull request; while the group's
+pull request is open, Dependabot holds the majors of every package the group
+covers, and once a package has a new major, its minor and patch releases stop
+until that major is merged or ignored. The workflow names every action by the
+commit of a release, with the release in a comment, and Dependabot moves the
+two together. Node and Python move by hand, in one change to
+`.github/workflows/ci.yml`, every Dockerfile that uses the image and, for
+Node, `@types/node`; `backend/tests/test_versions.py` fails when one place is
+left behind.
+
+CI fails on a known advisory. pip-audit checks the two lists the images
+install from against OSV, and `npm audit --omit=dev` checks the frontend's
+production dependencies, on every pull request, every push to `main` and
+every Monday. CI also checks that each backend image installed from the
+list CI exports from the lock itself and holds exactly the locked set. An
+image keeps the packages it was built with, so a deployment picks up a newer
+lock only when its image is rebuilt and redeployed.
 
 ## API summary
 
@@ -285,6 +373,7 @@ exported report it produces is committed next to it.
 │   ├── case-study.md        Worked example from raw file to clean register
 │   ├── rules.md             Validation and comparison rule catalogue
 │   └── user-guide/          User manual, one chapter per operation
+├── .github/dependabot.yml   Weekly dependency update pull requests
 ├── .github/workflows/ci.yml Backend and frontend continuous integration
 ├── .env.example             Local configuration template
 └── docker-compose.yml       Frontend, backend, and PostgreSQL stack
@@ -353,6 +442,12 @@ localStorage.
   `EAV_API_TOKENS` is set. Put it behind a trusted HTTPS gateway before
   exposing it to a network; bearer tokens on plain HTTP are readable in
   transit. Compose binds published ports to loopback by default.
+- The backend images install nothing but hash-pinned packages from
+  `backend/uv.lock` and the project's own wheel, built with the locked
+  setuptools, and CI fails on a known advisory in those packages or in the
+  frontend's production dependencies, every Monday as well as on every
+  change. The base images' operating-system packages, the Python interpreter
+  and nginx are not audited. See [Dependencies](#dependencies).
 - Do not use the fictional sample data as an engineering design basis.
 
 ## Decisions
