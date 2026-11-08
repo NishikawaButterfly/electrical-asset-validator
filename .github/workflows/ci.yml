@@ -9,6 +9,14 @@ on:
 permissions:
   contents: read
 
+# bash -eo pipefail rather than the default bash -e, so that a command that
+# fails inside a pipeline fails its step there, with its own error, instead of
+# leaving the commands after it an empty list. A job that sets defaults of its
+# own replaces these, so the backend and frontend jobs name the shell again.
+defaults:
+  run:
+    shell: bash
+
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -27,6 +35,95 @@ jobs:
 
       - name: Build application images
         run: docker compose --env-file .env.example build
+
+      - name: Build the single-container image
+        # The image the public demo is built from, which compose does not
+        # build.
+        run: docker build --tag electrical-asset-validator-demo .
+
+      - name: Read the uv release the images use
+        id: uv
+        run: |
+          version="$(sed -n 's|^FROM ghcr.io/astral-sh/uv:\([0-9][0-9.]*\)@sha256:[0-9a-f]\{64\} AS uv$|\1|p' backend/Dockerfile)"
+          test -n "${version}"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: ${{ steps.uv.outputs.version }}
+          enable-cache: false
+
+      - name: Check that each image holds exactly the locked set
+        # Three checks per image. The list the image installed from must be
+        # the one this job exports from uv.lock with its own uv, hashes
+        # included. pip, run inside the image with no index to fetch from,
+        # must find every locked package that applies to that interpreter
+        # already installed at the locked version. Then every package the
+        # image holds must be in the lock at the version installed, except
+        # the project itself, which must be there too.
+        run: |
+          exported="${RUNNER_TEMP}/requirements.txt"
+          uv export --directory backend --frozen --no-default-groups --group image \
+            --no-emit-project --no-header --output-file "${exported}"
+          locked="${RUNNER_TEMP}/locked.txt"
+          uv export --directory backend --frozen --no-default-groups --group image \
+            --no-emit-project --no-hashes --no-annotate --no-header --output-file "${locked}"
+          normalise() {
+            awk -F '==' 'NF == 2 { name = tolower($1); gsub(/[-_.]+/, "-", name); print name "==" $2 }' \
+              | sort
+          }
+          sed 's/ ;.*//' "${locked}" | normalise > "${RUNNER_TEMP}/locked-names.txt"
+          for image in electrical-asset-validator-backend electrical-asset-validator-demo; do
+            echo "::group::${image}"
+            # The header names the command that wrote the list, so it is left
+            # out of the comparison.
+            docker run --rm --entrypoint cat "${image}" /app/requirements.txt \
+              | sed '/^#/d' > "${RUNNER_TEMP}/installed-from.txt"
+            if ! diff "${exported}" "${RUNNER_TEMP}/installed-from.txt"; then
+              echo "${image} installed from a list that is not the export of uv.lock"
+              exit 1
+            fi
+            docker run --rm --entrypoint python \
+              --volume "${locked}:/tmp/locked.txt:ro" "${image}" \
+              -m pip install --dry-run --no-deps --no-index --disable-pip-version-check \
+              --requirement /tmp/locked.txt
+            docker run --rm --entrypoint python "${image}" \
+              -m pip list --format=freeze --disable-pip-version-check \
+              | normalise > "${RUNNER_TEMP}/installed.txt"
+            cat "${RUNNER_TEMP}/installed.txt"
+            echo "::endgroup::"
+            comm -23 "${RUNNER_TEMP}/installed.txt" "${RUNNER_TEMP}/locked-names.txt" \
+              > "${RUNNER_TEMP}/not-locked.txt"
+            if ! grep --quiet '^electrical-asset-validator==' "${RUNNER_TEMP}/not-locked.txt"; then
+              echo "${image} does not hold the project itself"
+              exit 1
+            fi
+            # grep exits 1 when it selects nothing, which is the pass here.
+            unlocked="$(
+              grep --invert-match '^electrical-asset-validator==' "${RUNNER_TEMP}/not-locked.txt" \
+                || test "$?" -eq 1
+            )"
+            if [ -n "${unlocked}" ]; then
+              echo "${image} holds packages the lock does not record:"
+              echo "${unlocked}"
+              exit 1
+            fi
+            echo "${image}: $(wc -l < "${RUNNER_TEMP}/installed.txt") packages, the locked set and the project"
+          done
+
+      - name: Smoke-test the single-container image
+        run: |
+          docker run --detach --name demo --publish 127.0.0.1:8001:8000 \
+            electrical-asset-validator-demo
+          for _ in $(seq 30); do
+            curl --fail --silent --output /dev/null http://127.0.0.1:8001/api/v1/health && break
+            sleep 1
+          done
+          curl --fail --show-error http://127.0.0.1:8001/api/v1/health
+          curl --fail --show-error --silent http://127.0.0.1:8001/ \
+            | grep --fixed-strings '<title>Electrical Asset Validator</title>'
+          docker rm --force demo
 
       - name: Start the complete stack
         run: docker compose --env-file .env.example up --detach --wait
@@ -113,6 +210,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
+        shell: bash
         working-directory: backend
     steps:
       - name: Check out repository
@@ -180,6 +278,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
+        shell: bash
         working-directory: frontend
     steps:
       - name: Check out repository
