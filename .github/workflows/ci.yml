@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    # Mondays at 05:41 UTC, so that an advisory published against what main
+    # already ships fails a run within a week even when nothing is pushed.
+    # GitHub delays scheduled runs at the start of every hour, when load is
+    # highest, and can drop queued ones, so the minute is not :00.
+    - cron: "41 5 * * 1"
   workflow_dispatch:
 
 permissions:
