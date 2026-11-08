@@ -17,7 +17,8 @@ permissions:
 
 # bash -eo pipefail rather than the default bash -e, so that a failing
 # command in a pipeline fails its step instead of handing an empty list to the
-# next command.
+# next command. A job that sets defaults of its own replaces these, so the
+# backend and frontend jobs name the shell again.
 defaults:
   run:
     shell: bash
@@ -202,6 +203,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
+        shell: bash
         working-directory: backend
     steps:
       - name: Check out repository
@@ -285,6 +287,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
+        shell: bash
         working-directory: frontend
     steps:
       - name: Check out repository
