@@ -17,6 +17,16 @@ uvicorn electrical_asset_validator.main:app --reload
 The API is available at `http://localhost:8000/api/v1`. Interactive API
 documentation is available at `/docs`.
 
+## Dependencies
+
+The ranges in `pyproject.toml` say what the backend accepts. `uv.lock` pins
+what the images install, with the hash of every file, and has to be
+regenerated with `uv lock` whenever a requirement changes; `uv lock --check`
+fails while it is stale. `pip install -e ".[dev]"` resolves the ranges and
+can pick newer releases than the lock, while `uv sync --locked --extra dev`
+installs exactly the locked set. The repository README explains how the
+images install the lock and how it is kept current.
+
 ## Configuration
 
 Settings use the `EAV_` prefix:

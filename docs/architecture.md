@@ -141,12 +141,28 @@ storage are roadmap items for larger registers.
 Nginx proxies `/api/` to the backend. This avoids embedding environment-specific
 backend hosts in the compiled frontend and reduces cross-origin configuration.
 
+### Locked image dependencies
+
+`backend/pyproject.toml` declares ranges, and both images that run the backend
+install `backend/uv.lock`: the exact set those ranges resolved to when the
+lock was last regenerated, each file checked against its recorded hash. Nothing is
+resolved while an image builds, so a new release reaches an image only
+through a change to the lock, which CI tests and audits first. A uv lockfile
+rather than a compiled requirements file, because Dependabot's uv updater
+relocks `uv.lock` from `pyproject.toml`, while its pip-compile and
+`uv pip compile` support regenerates a compiled file only from a `.in`
+source.
+
 ## Operational notes
 
 - Health checks gate backend startup on PostgreSQL and frontend startup on the
   backend.
-- Continuous integration builds both images and smoke-tests the complete
-  PostgreSQL-backed stack.
+- Continuous integration builds the two compose images and the
+  single-container image the demo is deployed from, checks that each backend
+  image holds exactly the locked packages, and smoke-tests the demo image and
+  the complete PostgreSQL-backed stack. It fails on a known advisory in the
+  locked backend set or in the frontend's production dependencies, and also
+  runs every Monday.
 - Configuration is supplied through environment variables; secrets are not
   committed.
 - Compose credentials are development defaults and must be changed outside a
