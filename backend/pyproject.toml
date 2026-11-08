@@ -1,5 +1,9 @@
 [build-system]
-requires = ["setuptools>=77", "wheel"]
+# setuptools has built wheels on its own since 70.1, so it is the only build
+# requirement, and every release before 84.1 has published security
+# advisories. The build group below locks the same requirement, and the
+# images build the project with the locked release alone.
+requires = ["setuptools>=84.1"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -11,6 +15,9 @@ requires-python = ">=3.12"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Electrical Asset Validator contributors" }]
+# These ranges are what the backend accepts. uv.lock, which uv lock generates
+# from this file, pins what the images install, and an image refuses to build
+# from a lock that no longer matches it.
 dependencies = [
   "fastapi>=0.115,<1",
   "openpyxl>=3.1,<4",
@@ -35,12 +42,23 @@ dev = [
   "httpx>=0.27,<1",
   "mypy>=1.14",
   "pandas-stubs>=2.2",
+  "pip-audit>=2.10",
   "pytest>=8.3,<9",
   "pytest-cov>=6,<7",
   "ruff>=0.8",
   "types-openpyxl>=3.1",
   "types-reportlab>=4.2",
 ]
+
+[dependency-groups]
+# What an image installs besides the runtime dependencies: pip itself.
+# python:3.12-slim ships the pip that Python 3.12's ensurepip bundles, 25.0.1,
+# and every pip release before 26.2 has published security advisories, so the
+# images replace it with the release locked here.
+image = ["pip>=26.2"]
+# What the images build the project's wheel with: [build-system].requires,
+# locked with its hashes like everything an image installs.
+build = ["setuptools>=84.1"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
