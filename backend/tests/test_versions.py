@@ -15,6 +15,9 @@ DOCKERFILES = (
 # CI reads the uv release from this line of backend/Dockerfile with sed, so
 # the line has to keep this exact form: the release, then the image digest.
 UV_STAGE = re.compile(r"FROM ghcr\.io/astral-sh/uv:([0-9][0-9.]*)@sha256:[0-9a-f]{64} AS uv")
+# A step of the CI workflow that uses an action: the action, what it is
+# named by, and the rest of the line.
+USES = re.compile(r"^\s+(?:- )?uses: ([^@\s]+)@(\S+)(.*)$", flags=re.MULTILINE)
 
 
 def image_tags(image: str) -> list[str]:
@@ -77,3 +80,17 @@ def test_both_images_export_the_lock_with_the_same_uv() -> None:
     ]
     assert all(len(lines) == 1 and UV_STAGE.fullmatch(lines[0]) for lines in stages), stages
     assert stages[0] == stages[1]
+
+
+def test_every_action_is_pinned_to_the_commit_of_a_release() -> None:
+    """A tag can be moved to other code and a commit cannot, so every action
+    is named by a full commit, with its release in the comment that
+    Dependabot rewrites along with the commit, and one action is named the
+    same way in every step."""
+    pins: dict[str, set[tuple[str, str]]] = {}
+    for action, ref, comment in USES.findall(WORKFLOW.read_text(encoding="utf-8")):
+        assert re.fullmatch(r"[0-9a-f]{40}", ref), (action, ref)
+        assert re.fullmatch(r" # v\d+\.\d+\.\d+", comment), (action, comment)
+        pins.setdefault(action, set()).add((ref, comment))
+    assert pins
+    assert all(len(named) == 1 for named in pins.values()), pins
